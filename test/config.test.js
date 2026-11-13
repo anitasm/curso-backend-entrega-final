@@ -3,14 +3,15 @@ const assert = require('node:assert/strict');
 const { spawnSync } = require('node:child_process');
 const path = require('node:path');
 const { validateEnv } = require('../src/config/env.config');
-const good={PORT:'8080',NODE_ENV:'test',MONGODB_URI:'mongodb://localhost/shipnow_test'};
+const { MOCK_DATABASE_NAME } = require('../src/config/mocks.config');
+const good={PORT:'8080',NODE_ENV:'test',MONGODB_URI:'mongodb://localhost/' + MOCK_DATABASE_NAME};
 test('Configuración pura: obligatorias, PORT estricto, URI y NODE_ENV',()=>{
   const config=validateEnv(good);assert.equal(config.port,8080);assert.ok(Object.isFrozen(config));
   for(const key of Object.keys(good))for(const value of [undefined,'',' '])assert.throws(()=>validateEnv({...good,[key]:value}),new RegExp(key));
   for(const PORT of ['8080abc','NaN','-1','0','65536','1.5',' 8080','Infinity'])assert.throws(()=>validateEnv({...good,PORT}),/PORT/);
   for(const NODE_ENV of ['dev','TEST',' production'])assert.throws(()=>validateEnv({...good,NODE_ENV}),/NODE_ENV/);
   for(const MONGODB_URI of ['https://example.test','mongodb://','mongodb://host/ db'])assert.throws(()=>validateEnv({...good,MONGODB_URI}),/MONGODB_URI/);
-  assert.equal(validateEnv({...good,MONGODB_URI:'mongodb+srv://example.test/shipnow_test'}).nodeEnv,'test');
+  assert.equal(validateEnv({...good,MONGODB_URI:'mongodb+srv://example.test/' + MOCK_DATABASE_NAME}).nodeEnv,'test');
 });
 test('Arranque aislado: valores vacíos o inválidos impiden conectar y escuchar',()=>{
   const server=path.resolve(__dirname,'../src/server.js');

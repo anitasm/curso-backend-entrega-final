@@ -21,7 +21,22 @@ async function startServer() {
     await connectDB(config.mongoUri);
     // Wait for the unique indexes before accepting writes.
     await Promise.all([new ProductsRepository().initialize(), new UsersRepository().initialize()]);
-    const app = createApp({ productsService, usersService, cartsService });
+    let mocksService;
+    if (['development', 'test'].includes(config.nodeEnv)) {
+      const OrdersRepository = require('./repositories/orders.repository');
+      const DeliveriesRepository = require('./repositories/deliveries.repository');
+      const MocksService = require('./services/mocks.service');
+      const createMockPersistence = require('./repositories/mock-transaction');
+      const ordersRepository = new OrdersRepository();
+      const deliveriesRepository = new DeliveriesRepository();
+      // Create collections/indexes before any request can open a transaction.
+      await Promise.all([ordersRepository.initialize(), deliveriesRepository.initialize()]);
+      mocksService = new MocksService({
+        usersRepository: new UsersRepository(), ordersRepository, deliveriesRepository,
+        ...createMockPersistence(),
+      });
+    }
+    const app = createApp({ productsService, usersService, cartsService, mocksService, nodeEnv: config.nodeEnv });
     server = http.createServer(app);
     const io = new Server(server);
     app.set('io', io);

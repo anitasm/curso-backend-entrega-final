@@ -1,81 +1,196 @@
-# ShipNow | Catálogo y gestión de perfiles
+# ShipNow / Rina · Backend III
 
-Proyecto de backend para emprendimientos de accesorios, desarrollado como preentrega del **módulo 1 de Backend III**. Integra una API REST y una interfaz web, con **Rina** como tienda de ejemplo.
+Proyecto académico para emprendimientos de accesorios, con **Rina** como tienda de ejemplo. El módulo 1 aporta el catálogo, los carritos y los perfiles; el **módulo 2 incorpora generación de datos ficticios y carga de lotes relacionados**. No se realizan envíos reales ni se integra un proveedor logístico externo.
 
-ShipNow propone una base para futuras funcionalidades logísticas. Esta etapa se concentra en productos, carritos y perfiles de usuario; no incluye envíos reales.
+Tecnologías: Node.js, CommonJS, Express 4, MongoDB, Mongoose 9, Handlebars, Socket.io y Multer. El módulo de mocks utiliza `node:crypto`, sin dependencias nuevas.
 
-## Funcionalidades
-
-- **Productos:** creación, consulta, edición y eliminación, con filtros, paginación e imágenes.
-- **Catálogo en tiempo real:** actualización de la interfaz mediante Socket.io.
-- **Carritos:** gestión de productos y cantidades, con cálculo de subtotales y total.
-- **Usuarios:** gestión de perfiles, validación de email y control de duplicados.
-
-## Tecnologías
-
-Node.js, Express, MongoDB, Mongoose, Handlebars, Socket.io y Multer. El proyecto utiliza CommonJS y pruebas nativas de Node.js.
-
-## Arquitectura
+## Arquitectura y cambios
 
 ```text
 Router → Controller → Service → Repository → Model / MongoDB
+                         ↓
+                    Generadores
 ```
 
-Los controllers gestionan las peticiones HTTP; los servicios validan y aplican reglas del negocio; los repositorios concentran el acceso a datos; los modelos definen esquemas e índices.
+Los controllers adaptan HTTP; el servicio valida cantidades y coordina relaciones; los generadores producen datos ficticios; los repositorios insertan documentos. La transacción y la comprobación de la base activa pertenecen a persistencia y se inyectan desde `server.js`.
 
-```text
-src/
-├── config/          # Configuración y conexión
-├── constants/       # Roles y estados
-├── controllers/     # Peticiones HTTP y vistas
-├── middlewares/     # Archivos y errores
-├── models/          # Product, Cart y User
-├── repositories/    # Persistencia
-├── routes/          # Rutas de la aplicación
-├── services/        # Reglas del negocio
-├── sockets/         # Eventos en tiempo real
-├── public/          # Estilos, scripts e imágenes
-├── views/           # Plantillas Handlebars
-├── app.js           # Creación de la aplicación
-└── server.js        # Conexión y arranque
-test/                # Pruebas automatizadas
-```
+| Componente | Archivos principales |
+| --- | --- |
+| Rutas y respuestas | `src/routes/mocks.router.js`, `src/controllers/mocks.controller.js` |
+| Validaciones y coordinación | `src/services/mocks.service.js` |
+| Generadores | `src/mocks/users.generator.js`, `orders.generator.js`, `deliveries.generator.js` |
+| Persistencia | `src/repositories/users.repository.js`, `orders.repository.js`, `deliveries.repository.js` |
+| Transacciones y base permitida | `src/repositories/mock-transaction.js`, `src/config/mocks.config.js` |
+| Modelos y constantes | `src/models/Order.js`, `Delivery.js`, `src/constants/index.js` |
+| Montaje y composición | `src/app.js`, `src/server.js` |
 
-## Cambios de esta entrega
+Se agrega el rol `driver` al enum utilizado por User. Los clientes y repartidores comparten ese modelo, sin contraseñas. La API pública `/api/users` conserva sus restricciones: asigna `user` al crear y rechaza el campo `role` tanto en altas como en actualizaciones.
 
-Se reorganizó la aplicación existente por capas, se incorporó el módulo Users y se adaptaron carritos, vistas y sockets para utilizar servicios. También se separó el arranque de la aplicación, se reforzaron las validaciones y se centralizó el manejo de errores.
-
-Se conserva la interfaz Rina y los contratos principales del catálogo y los carritos. La disponibilidad de los productos se calcula a partir de su estado y stock, sin duplicarla en la base de datos.
+Se mantienen el catálogo Rina, Productos, Carritos, las vistas, imágenes y eventos de Socket.io. No se agregan CRUD públicos de pedidos o entregas. Importar `app.js` sigue sin cargar modelos, conectar a MongoDB ni iniciar un servidor.
 
 ## Ejecución
 
-Desde la carpeta del proyecto, con la conexión a MongoDB configurada:
+Desde la carpeta del proyecto, con la conexión local configurada:
 
 ```powershell
 npm.cmd ci
 npm.cmd run dev
 ```
 
-Para iniciar sin reinicio automático: `npm.cmd start`.
+`npm.cmd start` inicia sin reinicio automático. `npm.cmd test` ejecuta la suite independiente de Atlas. Si las dependencias ya están instaladas, no es necesario repetir `npm.cmd ci`.
 
-## Rutas principales
+## Rutas de mocks
 
-| Ruta | Función |
+Disponibles bajo `/api/mocks` en `development` y `test`, con servicio inyectado. En `production` no se montan y responden **404**.
+
+| Método | Ruta | Respuesta exitosa |
+| --- | --- | --- |
+| GET | `/users?qty=2` | 200, arreglo con `nombre`, `email`, `rol` |
+| GET | `/mockingusers?qty=2` | 200, `status/payload` con `firstName`, `lastName`, `email`, `role` |
+| GET | `/mockingdrivers?qty=1` | 200, `status/payload` con perfiles `driver` |
+| GET | `/mockingorders?qty=2` | 200, `status/payload` con pedidos ficticios |
+| GET | `/mockingdeliveries?qty=2` | 200, `status/payload` con entregas ficticias |
+| POST | `/seed?qty=10` | 201, `{"insertados":10,"coleccion":"usuarios"}` |
+| POST | `/generateData` | 201, `status/payload` con los conteos confirmados |
+
+Los dos GET de usuarios y `/seed` comparten el generador que alterna clientes y repartidores; con dos perfiles devuelve ambos roles. La presentación traduce `user` a `cliente` y `driver` a `repartidor` solo en `/users`.
+
+**Los GET generan en memoria y no llaman a repositorios.** Las referencias hexadecimales de 24 caracteres de sus pedidos y entregas son simuladas: no corresponden a documentos guardados. Los POST persisten; sus referencias provienen exclusivamente de documentos insertados en esa misma operación.
+
+### Parámetros y límites
+
+- `qty`: entero decimal entre **1 y 100**. Por defecto, 10 en GET; obligatorio en `/seed`. Se rechazan decimales, valores vacíos, parámetros repetidos, arreglos y campos desconocidos.
+- `/generateData`: body JSON con solo `users`, `drivers`, `orders` y `deliveries`. Cada valor explícito debe ser un entero numérico seguro entre 0 y 100; los omitidos valen cero. No acepta parámetros de query.
+- El lote completo debe sumar **entre 1 y 100 documentos**. Para pedidos se requiere `users >= 1`; para entregas, `orders >= deliveries`.
+- `users` cuenta clientes y `drivers` repartidores. Sin repartidores, las entregas quedan pendientes y sin `driver`.
+
+Los límites son decisiones de implementación para acotar las cargas. Las entradas inválidas responden **400**, antes de ejecutar escrituras.
+
+### Estados y consistencia
+
+Las constantes y los enums usan una fuente única congelada con `Object.freeze`:
+
+| Constante | Valores |
 | --- | --- |
-| `/api/products` | API de productos |
-| `/api/users` | API de perfiles |
-| `/api/carts` | API de carritos |
-| `/products` | Catálogo y acceso al detalle de productos |
-| `/realtimeproducts` | Gestión del catálogo en tiempo real |
-| `/carts/:cid` | Vista de un carrito |
+| `USER_ROLES` | `admin`, `user`, `driver` |
+| `ORDER_STATUS` | `created`, `assigned`, `picked_up`, `in_transit`, `delivered`, `cancelled` |
+| `DELIVERY_STATUS` | `pending`, `assigned` |
+| `DELIVERY_PRIORITY` | `low`, `normal`, `high` |
 
-## Pruebas y alcance
+Cada pedido contiene un cliente, ítems, dirección ficticia, total, estado y prioridad. Los importes generados son enteros pequeños y el total es la suma de cantidad por precio. Se crea como máximo una entrega por pedido, respaldada por un índice único en `Delivery.order`.
+
+Con repartidor, la entrega y su pedido quedan `assigned`; sin repartidor, la entrega queda `pending` y el pedido `created`. Los clientes se eligen del grupo `user` insertado y los repartidores del grupo `driver`: una referencia ObjectId por sí sola no comprueba roles.
+
+## Persistencia y protección de datos
+
+Los POST solo pueden escribir si **la base real de la conexión activa es `shipnow_mock_dev`**. En cualquier otra base responden **403**. El nombre se comparte entre la comprobación de infraestructura y las pruebas; no se decide analizando una cadena de URI.
+
+Cada POST ejecuta una transacción de Mongoose: primero perfiles, luego pedidos y finalmente entregas, usando la misma sesión y sin operaciones de lote vacías. Las colecciones e índices se inicializan antes de atender peticiones, fuera de la transacción. Los errores originales conservan sus etiquetas durante el callback para permitir los reintentos del driver y se traducen al finalizar. Los conteos solo se devuelven tras confirmar el lote.
+
+Se requiere **Atlas o un replica set con soporte de transacciones**. Un servidor standalone responde **503** con una explicación; no existe una alternativa de escritura parcial. Un conflicto de clave única responde **409** y un fallo interno **500**, sin detalles sensibles.
+
+### Usar una base separada en Atlas
+
+1. Detener el servidor con `Ctrl+C`.
+2. En el editor, guardar de forma privada la URI habitual. En el `.env` local, cambiar **solo el nombre de base dentro de `MONGODB_URI`** por `shipnow_mock_dev`, conservando credenciales, host y opciones de conexión.
+3. Mantener `NODE_ENV=development` y comprobar que el usuario de Atlas tenga permisos de escritura sobre esa base.
+4. Ejecutar `npm.cmd run dev` nuevamente. La base puede comenzar vacía; no es necesario copiar el catálogo histórico.
+5. Para recuperar el catálogo habitual, restaurar la URI original y reiniciar.
+
+No compartir credenciales. `.env` y `node_modules/` están ignorados; `.env.example` permanece sin secretos. Los GET de mocks pueden utilizarse con la base habitual porque generan en memoria. Al cambiar a la base dedicada, el catálogo puede verse vacío: los datos anteriores siguen en su base original.
+
+## Recorrido en Postman
+
+Usar `http://localhost:8080` como URL base, o el puerto configurado localmente. Cada paso de escritura requiere la base dedicada indicada arriba.
+
+**1. Previsualizar perfiles**
+
+Crear una petición **GET** a `http://localhost:8080/api/mocks/users?qty=2`, sin body. Esperar **200**, dos perfiles y las etiquetas `cliente` y `repartidor`. Probar también `/api/mocks/mockingusers?qty=2` para ver el mismo tipo de datos con nombres de campos del modelo y `status/payload`.
+
+**2. Insertar perfiles**
+
+Crear una petición **POST** a `http://localhost:8080/api/mocks/seed?qty=10`, sin body. Esperar **201**:
+
+```json
+{ "insertados": 10, "coleccion": "usuarios" }
+```
+
+`usuarios` es la etiqueta del contrato; la colección real se llama `users`. El lote contiene cinco clientes y cinco repartidores.
+
+**3. Insertar un lote relacionado**
+
+Crear una petición **POST** a `http://localhost:8080/api/mocks/generateData`. Seleccionar **Body → raw → JSON** (`Content-Type: application/json`) e ingresar:
+
+```json
+{ "users": 2, "drivers": 1, "orders": 2, "deliveries": 2 }
+```
+
+Esperar **201**:
+
+```json
+{
+  "status": "success",
+  "payload": {
+    "insertados": { "users": 2, "drivers": 1, "orders": 2, "deliveries": 2 }
+  }
+}
+```
+
+Cada POST agrega su propio lote con emails únicos `@example.test`; `generateData` no reutiliza perfiles de `/seed`. Si la base estaba vacía y se ejecuta cada POST una sola vez, habrá **13 perfiles, 2 pedidos y 2 entregas**.
+
+Para probar entregas sin repartidor, enviar `{"users":1,"orders":1,"deliveries":1}`. Se agrega otro lote, con entrega pendiente y sin campo `driver`.
+
+**4. Probar errores**
+
+GET `/api/mocks/users?qty=101`, GET `/api/mocks/users?qty=1&qty=2` o POST `/api/mocks/generateData` con `{"orders":1}` deben responder **400** sin insertar registros. Los POST sobre la base habitual responden **403**. En producción, todas las rutas de mocks responden **404**.
+
+**5. Revisar las relaciones en Atlas**
+
+En **Data Explorer**, abrir la base `shipnow_mock_dev` y actualizar la vista de colecciones:
+
+| Modelo | Colección real | Datos |
+| --- | --- | --- |
+| User | `users` | Clientes (`user`) y repartidores (`driver`) |
+| Order | `orders` | Pedidos con `customer`, ítems y total |
+| Delivery | `deliveries` | Entregas con `order` y `driver` opcional |
+| Product | `products` | Catálogo existente; no lo generan los mocks |
+| Cart | `carts` | Carritos existentes; no los generan los mocks |
+
+- Copiar `customer` de un pedido y buscarlo como `_id` en `users`; el documento debe existir y tener `role: "user"`.
+- Copiar `order` de una entrega y buscarlo como `_id` en `orders`; debe existir.
+- Si la entrega tiene `driver`, buscar ese `_id` en `users`; debe existir y tener `role: "driver"`. Tanto la entrega como su pedido deben estar `assigned`.
+- Sin `driver`, comprobar `pending` en la entrega y `created` en el pedido.
+
+Ejemplo de filtro en `users`, reemplazando el texto por el identificador copiado:
+
+```javascript
+{ _id: ObjectId("ID_COPIADO"), role: "user" }
+```
+
+## Verificación
+
+**39 pruebas automatizadas aprobadas:** las 18 del módulo 1 y 21 nuevas sobre mocks. Cubren formatos HTTP, límites y parámetros repetidos, ausencia de escrituras en GET, referencias persistidas, roles y estados, sesión compartida, fallo de la última escritura, producción con 404 y base no permitida con 403.
 
 ```powershell
 npm.cmd test
 ```
 
-La suite cuenta con **18 pruebas aprobadas** que cubren validaciones, endpoints, carritos, vistas, imágenes, sockets y arranque. Las pruebas automatizadas utilizan dependencias de prueba y no requieren Atlas.
+La suite utiliza repositorios y transacciones de prueba explícitos, sin Atlas. Los dobles verifican la coordinación y propagación de errores, **no la atomicidad del servidor MongoDB real**. En el entorno de trabajo, el sandbox bloqueó localhost con EACCES; la ejecución autorizada fuera del sandbox pasó completa.
 
+### Prueba de rollback real — optativa y pendiente
 
-Repositorio de origen: [anitasm/curso-backend](https://github.com/anitasm/curso-backend).
+Con la URI local apuntando a `shipnow_mock_dev`, ejecutar por separado:
+
+```powershell
+node --test test/integration/mocks-transaction.js
+```
+
+Esta prueba no forma parte de `npm.cmd test`. Comprueba la base activa antes de cargar modelos, inserta un lote dentro de una transacción, provoca un fallo deliberado después de la última inserción y verifica que ninguno de esos documentos quede persistido. No borra datos anteriores ni ejecuta drops. Si MongoDB no soporta transacciones, la prueba falla en lugar de omitir la comprobación.
+
+**Pendiente en esta entrega:** ejecutar esa prueba y el recorrido manual sobre Atlas. No se modificó el `.env` real ni se realizaron escrituras de comprobación en una base real.
+
+## Entrega
+
+Rama: `feature/backend-iii-modulo-2`. Revisar `git status --short --branch` y `git diff` antes de agregar los archivos nuevos y publicar. `package-lock.json` está versionado; no se agregaron paquetes. El commit y el push quedan a cargo de la revisión de la estudiante.
+
+Repositorio: [anitasm/curso-backend](https://github.com/anitasm/curso-backend). El ejercicio de puntos de fidelidad se entrega aparte en el campus. Los datos de Atlas no forman parte del repositorio; los JSON de `src/data` siguen siendo material histórico, sin importación automática.

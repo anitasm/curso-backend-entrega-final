@@ -3,6 +3,11 @@ const { normalize, persist } = require('./persistence');
 const PUBLIC_FIELDS = 'firstName lastName email role createdAt updatedAt';
 class UsersRepository {
   initialize() { return persist(() => User.init()); }
+  async insertMany(data, session) {
+    // Batch writes belong to a transaction; translate errors only after it ends.
+    const documents = await User.insertMany(data, { session, ordered: true });
+    return documents.map(normalize);
+  }
   list({ page, limit }) {
     return persist(async () => {
       const [rows, count] = await Promise.all([

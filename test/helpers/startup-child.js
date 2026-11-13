@@ -6,6 +6,8 @@ db.connectDB = async () => { if (mode === 'connection') throw new Error('mongodb
 db.disconnectDB = async () => {};
 require('../../src/repositories/products.repository').prototype.initialize = async () => {};
 require('../../src/repositories/users.repository').prototype.initialize = async () => {};
+require('../../src/repositories/orders.repository').prototype.initialize = async () => {};
+require('../../src/repositories/deliveries.repository').prototype.initialize = async () => {};
 const { startServer } = require('../../src/server');
 (async () => {
   if (mode === 'connection') { await startServer(); return; }
