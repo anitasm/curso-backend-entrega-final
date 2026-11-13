@@ -14,6 +14,7 @@ function createApp({ productsService, usersService, cartsService, mocksService, 
   app.use(express.urlencoded({ extended: true }));
   app.use(express.static(path.join(__dirname, 'public')));
   if (io) app.set('io', io);
+  app.use('/api/health', require('./routes/health.router'));
   app.use('/api/products', require('./routes/products.router')(productsService, upload));
   app.use('/api/users', require('./routes/users.router')(usersService));
   app.use('/api/carts', require('./routes/carts.router')(cartsService));

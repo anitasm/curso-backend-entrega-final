@@ -1,5 +1,5 @@
 const { randomBytes } = require('node:crypto');
-const { USER_ROLES } = require('../constants');
+const { USER_ROLES, MOCKING_PARAMETERS } = require('../constants');
 const v = require('../utils/validation');
 const generateUsers = require('../mocks/users.generator');
 const generateOrders = require('../mocks/orders.generator');
@@ -7,10 +7,10 @@ const generateDeliveries = require('../mocks/deliveries.generator');
 
 function quantity(query, required = false) {
   v.fields(query, ['qty']);
-  if (query.qty === undefined && !required) return 10;
-  if (typeof query.qty !== 'string' || !/^\d+$/.test(query.qty)) v.invalid('qty debe ser un entero decimal entre 1 y 100');
+  if (query.qty === undefined && !required) return MOCKING_PARAMETERS.DEFAULT;
+  if (typeof query.qty !== 'string' || !/^\d+$/.test(query.qty)) v.invalid(`qty debe ser un entero decimal entre 1 y ${MOCKING_PARAMETERS.MAX}`);
   const value = Number(query.qty);
-  if (!Number.isSafeInteger(value) || value < 1 || value > 100) v.invalid('qty debe estar entre 1 y 100');
+  if (!Number.isSafeInteger(value) || value < 1 || value > MOCKING_PARAMETERS.MAX) v.invalid(`qty debe estar entre 1 y ${MOCKING_PARAMETERS.MAX}`);
   return value;
 }
 
@@ -20,11 +20,11 @@ function batchCounts(input) {
   const counts = {};
   for (const key of keys) {
     const value = Object.hasOwn(input, key) ? input[key] : 0;
-    if (!Number.isSafeInteger(value) || value < 0 || value > 100) v.invalid(`${key} debe ser un entero numérico entre 0 y 100`);
+    if (!Number.isSafeInteger(value) || value < 0 || value > MOCKING_PARAMETERS.MAX) v.invalid(`${key} debe ser un entero numérico entre 0 y ${MOCKING_PARAMETERS.MAX}`);
     counts[key] = value;
   }
   const total = Object.values(counts).reduce((sum, value) => sum + value, 0);
-  if (total < 1 || total > 100) v.invalid('El lote debe contener entre 1 y 100 registros en total');
+  if (total < 1 || total > MOCKING_PARAMETERS.MAX) v.invalid(`El lote debe contener entre 1 y ${MOCKING_PARAMETERS.MAX} registros en total`);
   if (counts.orders && !counts.users) v.invalid('Para generar pedidos se requiere al menos un cliente (users)');
   if (counts.deliveries > counts.orders) v.invalid('deliveries no puede superar orders');
   return counts;
@@ -47,13 +47,15 @@ class MocksService {
     return generateDeliveries(count, { orderIds });
   }
 
-  async seed(query = {}) {
-    const count = quantity(query, true);
+  async seedUsers(query = {}, { requireQuantity = false } = {}) {
+    const count = quantity(query, requireQuantity);
     await this.assertMockDatabase();
-    return this.withTransaction(async session => {
-      const users = await this.usersRepository.insertMany(generateUsers(count), session);
-      return users.length;
-    });
+    return this.withTransaction(session => this.usersRepository.insertMany(generateUsers(count), session));
+  }
+
+  async seed(query = {}) {
+    const users = await this.seedUsers(query, { requireQuantity: true });
+    return users.length;
   }
 
   async generateData(input, query = {}) {

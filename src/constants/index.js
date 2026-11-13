@@ -6,4 +6,5 @@ const ORDER_STATUS = Object.freeze({
 });
 const DELIVERY_STATUS = Object.freeze({ PENDING: 'pending', ASSIGNED: 'assigned' });
 const DELIVERY_PRIORITY = Object.freeze({ LOW: 'low', NORMAL: 'normal', HIGH: 'high' });
-module.exports = Object.freeze({ USER_ROLES, PRODUCT_STATUS, ORDER_STATUS, DELIVERY_STATUS, DELIVERY_PRIORITY });
+const MOCKING_PARAMETERS = Object.freeze({ DEFAULT: 10, MAX: 100 });
+module.exports = Object.freeze({ MOCKING_PARAMETERS, USER_ROLES, PRODUCT_STATUS, ORDER_STATUS, DELIVERY_STATUS, DELIVERY_PRIORITY });

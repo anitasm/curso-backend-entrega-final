@@ -117,3 +117,43 @@ test('HTTP mocks: falla final no responde éxito y Users conserva sus restriccio
   assert.equal(publicUser.body.payload.role, USER_ROLES.USER);
   assert.equal((await f.request('/api/users/' + publicUser.body.payload.id, { method: 'PUT', body: { role: USER_ROLES.DRIVER } })).status, 400);
 });
+
+test('Clase 2: health informa disponibilidad HTTP sin usar mocks', async t => {
+  const f = await setup(t);
+  const result = await f.request('/api/health');
+  assert.equal(result.status, 200);
+  assert.equal(result.body.status, 'ok');
+  assert.equal(new Date(result.body.timestamp).toISOString(), result.body.timestamp);
+  assert.deepEqual(f.calls, []);
+});
+
+test('Clase 2: POST mocks/users devuelve perfiles confirmados y default compartido', async t => {
+  const { MOCKING_PARAMETERS } = require('../src/constants');
+  const f = await setup(t);
+  const result = await f.request('/api/mocks/users?qty=2', { method: 'POST' });
+  assert.equal(result.status, 201);
+  assert.equal(result.body.status, 'success');
+  assert.equal(result.body.payload.inserted, 2);
+  assert.equal(result.body.payload.collection, 'users');
+  assert.deepEqual(result.body.payload.users.map(user => user.role), [USER_ROLES.USER, USER_ROLES.DRIVER]);
+  assert.ok(result.body.payload.users.every(user => /^[a-f0-9]{24}$/.test(user.id) && !('password' in user)));
+  assert.deepEqual(result.body.payload.users, f.batches[0].rows);
+  assert.equal(f.committed(), true);
+  const defaults = await f.request('/api/mocks/users', { method: 'POST' });
+  assert.equal(defaults.status, 201);
+  assert.equal(defaults.body.payload.inserted, MOCKING_PARAMETERS.DEFAULT);
+});
+
+test('Clase 2: nuevo POST conserva validación, base dedicada y exclusión en production', async t => {
+  const f = await setup(t);
+  for (const query of ['qty=0', 'qty=101', 'qty=1&qty=2', 'qty=1&extra=x']) {
+    assert.equal((await f.request('/api/mocks/users?' + query, { method: 'POST' })).status, 400);
+  }
+  assert.deepEqual(f.calls, []);
+  const forbidden = await setup(t, { forbidden: true });
+  assert.equal((await forbidden.request('/api/mocks/users?qty=2', { method: 'POST' })).status, 403);
+  assert.deepEqual(forbidden.calls, ['guard']);
+  const production = await setup(t, { nodeEnv: 'production' });
+  assert.equal((await production.request('/api/mocks/users?qty=2', { method: 'POST' })).status, 404);
+  assert.deepEqual(production.calls, []);
+});

@@ -28,6 +28,12 @@ Se agrega el rol `driver` al enum utilizado por User. Los clientes y repartidore
 
 Se mantienen el catálogo Rina, Productos, Carritos, las vistas, imágenes y eventos de Socket.io. No se agregan CRUD públicos de pedidos o entregas. Importar `app.js` sigue sin cargar modelos, conectar a MongoDB ni iniciar un servidor.
 
+## Ajustes según Clase 2
+
+Se incorporaron el endpoint de disponibilidad HTTP, la ruta de carga de usuarios vista en clase, constantes de mocking y pruebas de interacción con `mock.fn`. La arquitectura y los generadores existentes ya siguen la separación propuesta por el profesor.
+
+El material de clase utiliza otros roles, contraseñas y máximo 50; esta adaptación conserva los perfiles sin contraseña, el rol `user` y máximo 100 de la consigna original. Las diferencias y las partes incompletas del ejemplo están detalladas en [Adaptación de Clase 2](docs/clase-2.md).
+
 ## Ejecución
 
 Desde la carpeta del proyecto, con la conexión local configurada:
@@ -50,16 +56,17 @@ Disponibles bajo `/api/mocks` en `development` y `test`, con servicio inyectado.
 | GET | `/mockingdrivers?qty=1` | 200, `status/payload` con perfiles `driver` |
 | GET | `/mockingorders?qty=2` | 200, `status/payload` con pedidos ficticios |
 | GET | `/mockingdeliveries?qty=2` | 200, `status/payload` con entregas ficticias |
+| POST | `/users?qty=2` | 201, `status/payload` con `inserted`, `users` y `collection` |
 | POST | `/seed?qty=10` | 201, `{"insertados":10,"coleccion":"usuarios"}` |
 | POST | `/generateData` | 201, `status/payload` con los conteos confirmados |
 
-Los dos GET de usuarios y `/seed` comparten el generador que alterna clientes y repartidores; con dos perfiles devuelve ambos roles. La presentación traduce `user` a `cliente` y `driver` a `repartidor` solo en `/users`.
+Los dos GET de usuarios, POST `/users` y `/seed` comparten el generador que alterna clientes y repartidores; con dos perfiles devuelve ambos roles. La presentación traduce `user` a `cliente` y `driver` a `repartidor` solo en `/users`.
 
 **Los GET generan en memoria y no llaman a repositorios.** Las referencias hexadecimales de 24 caracteres de sus pedidos y entregas son simuladas: no corresponden a documentos guardados. Los POST persisten; sus referencias provienen exclusivamente de documentos insertados en esa misma operación.
 
 ### Parámetros y límites
 
-- `qty`: entero decimal entre **1 y 100**. Por defecto, 10 en GET; obligatorio en `/seed`. Se rechazan decimales, valores vacíos, parámetros repetidos, arreglos y campos desconocidos.
+- `qty`: entero decimal entre **1 y 100**. Por defecto, 10 en GET y POST `/users`; obligatorio en `/seed`. Los valores se centralizan en `MOCKING_PARAMETERS`. Se rechazan decimales, valores vacíos, parámetros repetidos, arreglos y campos desconocidos.
 - `/generateData`: body JSON con solo `users`, `drivers`, `orders` y `deliveries`. Cada valor explícito debe ser un entero numérico seguro entre 0 y 100; los omitidos valen cero. No acepta parámetros de query.
 - El lote completo debe sumar **entre 1 y 100 documentos**. Para pedidos se requiere `users >= 1`; para entregas, `orders >= deliveries`.
 - `users` cuenta clientes y `drivers` repartidores. Sin repartidores, las entregas quedan pendientes y sin `driver`.
@@ -101,6 +108,19 @@ No compartir credenciales. `.env` y `node_modules/` están ignorados; `.env.exam
 
 ## Recorrido en Postman
 
+### Importar las peticiones
+
+En Postman, usar **Import** y seleccionar estos archivos del repositorio:
+
+- [Colección ShipNow — Módulo 2](postman/ShipNow-Modulo-2.postman_collection.json).
+- [Entorno ShipNow Local](postman/ShipNow-Local.postman_environment.json).
+
+El entorno es opcional: la colección ya define `baseUrl=http://localhost:8080` y puede utilizarse con **No Environment**. Si falla la importación del entorno, crearlo manualmente con esa única variable o usar la variable de la colección. Ajustar el valor si el servidor usa otro puerto. La colección incluye verificaciones automáticas de respuesta, visibles en **Test Results** en el panel de respuesta después de pulsar **Send**. Ejecutar primero la carpeta **Consultas sin escritura**; la carpeta **Escrituras** agrega datos cada vez que se ejecuta.
+
+Probar primero GET `{{baseUrl}}/api/health`: debe responder 200 con `status: "ok"` y `timestamp`. Este endpoint informa que Express atiende peticiones; no consulta MongoDB.
+
+### Pruebas paso a paso
+
 Usar `http://localhost:8080` como URL base, o el puerto configurado localmente. Cada paso de escritura requiere la base dedicada indicada arriba.
 
 **1. Previsualizar perfiles**
@@ -116,6 +136,10 @@ Crear una petición **POST** a `http://localhost:8080/api/mocks/seed?qty=10`, si
 ```
 
 `usuarios` es la etiqueta del contrato; la colección real se llama `users`. El lote contiene cinco clientes y cinco repartidores.
+
+También se puede usar la ruta vista en clase: **POST** `/api/mocks/users?qty=2`, sin body. Responde **201** con `status: "success"` y un `payload` que contiene `inserted: 2`, `users` (los dos perfiles guardados con sus identificadores) y `collection: "users"`.
+
+Esta ruta agrega un lote adicional, tiene qty por defecto 10 y mantiene la misma transacción y restricción de base que `/seed`. No es necesario ejecutar ambas para probar una carga de perfiles.
 
 **3. Insertar un lote relacionado**
 
@@ -136,7 +160,7 @@ Esperar **201**:
 }
 ```
 
-Cada POST agrega su propio lote con emails únicos `@example.test`; `generateData` no reutiliza perfiles de `/seed`. Si la base estaba vacía y se ejecuta cada POST una sola vez, habrá **13 perfiles, 2 pedidos y 2 entregas**.
+Cada POST agrega su propio lote con emails únicos `@example.test`; `generateData` no reutiliza perfiles de `/seed`. Si la base estaba vacía y se ejecutan únicamente `/seed?qty=10` y el ejemplo de `generateData` una vez, habrá **13 perfiles, 2 pedidos y 2 entregas**. Si además se ejecuta POST `/users?qty=2`, habrá **15 perfiles**.
 
 Para probar entregas sin repartidor, enviar `{"users":1,"orders":1,"deliveries":1}`. Se agrega otro lote, con entrega pendiente y sin campo `driver`.
 
@@ -169,7 +193,7 @@ Ejemplo de filtro en `users`, reemplazando el texto por el identificador copiado
 
 ## Verificación
 
-**39 pruebas automatizadas aprobadas:** las 18 del módulo 1 y 21 nuevas sobre mocks. Cubren formatos HTTP, límites y parámetros repetidos, ausencia de escrituras en GET, referencias persistidas, roles y estados, sesión compartida, fallo de la última escritura, producción con 404 y base no permitida con 403.
+**45 pruebas automatizadas aprobadas:** las 39 existentes y 6 adicionales sobre health, la ruta de clase y dobles de prueba. Cubren formatos HTTP, límites y parámetros repetidos, ausencia de escrituras en GET, referencias persistidas, roles y estados, sesión compartida, fallo de la última escritura, producción con 404 y base no permitida con 403.
 
 ```powershell
 npm.cmd test
@@ -187,10 +211,10 @@ node --test test/integration/mocks-transaction.js
 
 Esta prueba no forma parte de `npm.cmd test`. Comprueba la base activa antes de cargar modelos, inserta un lote dentro de una transacción, provoca un fallo deliberado después de la última inserción y verifica que ninguno de esos documentos quede persistido. No borra datos anteriores ni ejecuta drops. Si MongoDB no soporta transacciones, la prueba falla en lugar de omitir la comprobación.
 
-**Pendiente en esta entrega:** ejecutar esa prueba y el recorrido manual sobre Atlas. No se modificó el `.env` real ni se realizaron escrituras de comprobación en una base real.
+La estudiante confirmó la ejecución manual de health y las peticiones GET y POST con los códigos esperados en Postman. Queda pendiente verificar las relaciones en Atlas y ejecutar la prueba optativa de rollback real; las respuestas HTTP correctas no sustituyen esas comprobaciones.
 
 ## Entrega
 
 Rama: `feature/backend-iii-modulo-2`. Revisar `git status --short --branch` y `git diff` antes de agregar los archivos nuevos y publicar. `package-lock.json` está versionado; no se agregaron paquetes. El commit y el push quedan a cargo de la revisión de la estudiante.
 
-Repositorio: [anitasm/curso-backend](https://github.com/anitasm/curso-backend). El ejercicio de puntos de fidelidad se entrega aparte en el campus. Los datos de Atlas no forman parte del repositorio; los JSON de `src/data` siguen siendo material histórico, sin importación automática.
+Repositorio de esta entrega: [anitasm/curso-backend-modulo-2](https://github.com/anitasm/curso-backend-modulo-2). El ejercicio de puntos de fidelidad se entrega aparte en el campus. Los datos de Atlas no forman parte del repositorio; los JSON de `src/data` siguen siendo material histórico, sin importación automática.

@@ -9,6 +9,7 @@ module.exports = service => {
   router.get('/mockingdrivers', c.mockingDrivers);
   router.get('/mockingorders', c.mockingOrders);
   router.get('/mockingdeliveries', c.mockingDeliveries);
+  router.post('/users', c.seedUsers);
   router.post('/seed', c.seed);
   router.post('/generateData', c.generateData);
   return router;

@@ -1,0 +1,362 @@
+{
+  "info": {
+    "name": "ShipNow - Módulo 2 - Rina",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Adaptación de Clase 2. GET genera en memoria; POST agrega lotes en shipnow_mock_dev. Ejecutar los POST solo cuando se desee insertar nuevos datos. Sin passwords ni tokens."
+  },
+  "auth": {
+    "type": "noauth"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "01 - Consultas sin escritura",
+      "item": [
+        {
+          "name": "Health HTTP",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/health",
+            "description": "No requiere credenciales en Postman."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP esperado\", function () { pm.response.to.have.status(200); });",
+                  "const data = pm.response.json();",
+                  "pm.test(\"Contrato de respuesta\", function () { pm.expect(data.status).to.eql(\"ok\"); pm.expect(data.timestamp).to.be.a(\"string\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Usuarios - formato de entrega",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/mocks/users?qty=2",
+            "description": "No requiere credenciales en Postman."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP esperado\", function () { pm.response.to.have.status(200); });",
+                  "const data = pm.response.json();",
+                  "pm.test(\"Contrato de respuesta\", function () { pm.expect(data).to.have.lengthOf(2); pm.expect(data.map(u => u.rol)).to.eql([\"cliente\", \"repartidor\"]); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Usuarios - envelope del modelo",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/mocks/mockingusers?qty=2",
+            "description": "No requiere credenciales en Postman."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP esperado\", function () { pm.response.to.have.status(200); });",
+                  "const data = pm.response.json();",
+                  "pm.test(\"Contrato de respuesta\", function () { pm.expect(data.status).to.eql(\"success\"); pm.expect(data.payload).to.have.lengthOf(2); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Repartidores",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/mocks/mockingdrivers?qty=1",
+            "description": "No requiere credenciales en Postman."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP esperado\", function () { pm.response.to.have.status(200); });",
+                  "const data = pm.response.json();",
+                  "pm.test(\"Contrato de respuesta\", function () { pm.expect(data.payload).to.have.lengthOf(1); pm.expect(data.payload[0].role).to.eql(\"driver\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pedidos simulados",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/mocks/mockingorders?qty=2",
+            "description": "No requiere credenciales en Postman."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP esperado\", function () { pm.response.to.have.status(200); });",
+                  "const data = pm.response.json();",
+                  "pm.test(\"Contrato de respuesta\", function () { pm.expect(data.payload).to.have.lengthOf(2); data.payload.forEach(o => pm.expect(o.total).to.eql(o.items.reduce((sum, i) => sum + i.quantity * i.price, 0))); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Entregas simuladas",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/mocks/mockingdeliveries?qty=2",
+            "description": "No requiere credenciales en Postman."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP esperado\", function () { pm.response.to.have.status(200); });",
+                  "const data = pm.response.json();",
+                  "pm.test(\"Contrato de respuesta\", function () { pm.expect(data.payload).to.have.lengthOf(2); data.payload.forEach(d => pm.expect(d.status).to.eql(\"pending\")); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 - Escrituras - cada envío agrega un lote",
+      "item": [
+        {
+          "name": "Seed de entrega",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/mocks/seed?qty=10",
+            "description": "Agrega un lote independiente. Requiere la base activa shipnow_mock_dev; no ejecutar contra el catálogo habitual."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP esperado\", function () { pm.response.to.have.status(201); });",
+                  "const data = pm.response.json();",
+                  "pm.test(\"Contrato de respuesta\", function () { pm.expect(data).to.eql({insertados:10, coleccion:\"usuarios\"}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Seed de usuarios - ruta de Clase 2 adaptada",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/mocks/users?qty=2",
+            "description": "Agrega un lote independiente. Requiere la base activa shipnow_mock_dev; no ejecutar contra el catálogo habitual."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP esperado\", function () { pm.response.to.have.status(201); });",
+                  "const data = pm.response.json();",
+                  "pm.test(\"Contrato de respuesta\", function () { pm.expect(data.status).to.eql(\"success\"); pm.expect(data.payload.inserted).to.eql(2); pm.expect(data.payload.collection).to.eql(\"users\"); pm.expect(data.payload.users).to.have.lengthOf(2); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Lote relacionado",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/mocks/generateData",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"users\": 2,\n  \"drivers\": 1,\n  \"orders\": 2,\n  \"deliveries\": 2\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Agrega un lote independiente. Requiere la base activa shipnow_mock_dev; no ejecutar contra el catálogo habitual."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP esperado\", function () { pm.response.to.have.status(201); });",
+                  "const data = pm.response.json();",
+                  "pm.test(\"Contrato de respuesta\", function () { pm.expect(data.payload.insertados).to.eql({users:2, drivers:1, orders:2, deliveries:2}); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Lote sin repartidor",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/mocks/generateData",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"users\": 1,\n  \"orders\": 1,\n  \"deliveries\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Agrega un lote independiente. Requiere la base activa shipnow_mock_dev; no ejecutar contra el catálogo habitual."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP esperado\", function () { pm.response.to.have.status(201); });",
+                  "const data = pm.response.json();",
+                  "pm.test(\"Contrato de respuesta\", function () { pm.expect(data.payload.insertados).to.eql({users:1, drivers:0, orders:1, deliveries:1}); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 - Validaciones - sin inserciones",
+      "item": [
+        {
+          "name": "Cantidad fuera de rango",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/mocks/users?qty=101",
+            "description": "No requiere credenciales en Postman."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP esperado\", function () { pm.response.to.have.status(400); });",
+                  "const data = pm.response.json();",
+                  "pm.test(\"Contrato de respuesta\", function () { pm.expect(data.status).to.eql(\"error\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Parámetro repetido",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/mocks/users?qty=1&qty=2",
+            "description": "No requiere credenciales en Postman."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP esperado\", function () { pm.response.to.have.status(400); });",
+                  "const data = pm.response.json();",
+                  "pm.test(\"Contrato de respuesta\", function () { pm.expect(data.status).to.eql(\"error\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pedido sin cliente",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/mocks/generateData",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orders\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "No requiere credenciales en Postman."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP esperado\", function () { pm.response.to.have.status(400); });",
+                  "const data = pm.response.json();",
+                  "pm.test(\"Contrato de respuesta\", function () { pm.expect(data.status).to.eql(\"error\"); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

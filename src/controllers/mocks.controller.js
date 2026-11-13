@@ -23,6 +23,12 @@ module.exports = service => ({
     try { res.json({ status: 'success', payload: await service.previewDeliveries(req.query) }); }
     catch (error) { next(error); }
   },
+  seedUsers: async (req, res, next) => {
+    try {
+      const users = await service.seedUsers(req.query);
+      res.status(201).json({ status: 'success', payload: { inserted: users.length, users, collection: 'users' } });
+    } catch (error) { next(error); }
+  },
   seed: async (req, res, next) => {
     try { res.status(201).json({ insertados: await service.seed(req.query), coleccion: 'usuarios' }); }
     catch (error) { next(error); }
