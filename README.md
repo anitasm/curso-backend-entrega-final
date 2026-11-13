@@ -206,6 +206,4 @@ node --test test/integration/mocks-transaction.js
 
 ## Entrega
 
-Rama: `feature/backend-iii-modulo-2`. Revisar `git status --short --branch` y `git diff` antes de agregar los archivos nuevos y publicar. `package-lock.json` está versionado; no se agregaron paquetes. El commit y el push quedan a cargo de la revisión de la estudiante.
-
 Repositorio de esta entrega: [anitasm/curso-backend-modulo-2](https://github.com/anitasm/curso-backend-modulo-2). 
