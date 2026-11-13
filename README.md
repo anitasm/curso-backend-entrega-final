@@ -1,6 +1,6 @@
 # ShipNow / Rina · Backend III
 
-Proyecto académico para emprendimientos de accesorios, con **Rina** como tienda de ejemplo. El módulo 1 aporta el catálogo, los carritos y los perfiles; el **módulo 2 incorpora generación de datos ficticios y carga de lotes relacionados**. No se realizan envíos reales ni se integra un proveedor logístico externo.
+Emprendimiento de accesorios, con **Rina** como tienda de ejemplo. El módulo 1 aporta el catálogo, los carritos y los perfiles; el **módulo 2 incorpora generación de datos ficticios y carga de lotes relacionados**. No se realizan envíos reales ni se integra un proveedor logístico externo.
 
 Tecnologías: Node.js, CommonJS, Express 4, MongoDB, Mongoose 9, Handlebars, Socket.io y Multer. El módulo de mocks utiliza `node:crypto`, sin dependencias nuevas.
 
@@ -28,11 +28,6 @@ Se agrega el rol `driver` al enum utilizado por User. Los clientes y repartidore
 
 Se mantienen el catálogo Rina, Productos, Carritos, las vistas, imágenes y eventos de Socket.io. No se agregan CRUD públicos de pedidos o entregas. Importar `app.js` sigue sin cargar modelos, conectar a MongoDB ni iniciar un servidor.
 
-## Ajustes según Clase 2
-
-Se incorporaron el endpoint de disponibilidad HTTP, la ruta de carga de usuarios vista en clase, constantes de mocking y pruebas de interacción con `mock.fn`. La arquitectura y los generadores existentes ya siguen la separación propuesta por el profesor.
-
-El material de clase utiliza otros roles, contraseñas y máximo 50; esta adaptación conserva los perfiles sin contraseña, el rol `user` y máximo 100 de la consigna original. Las diferencias y las partes incompletas del ejemplo están detalladas en [Adaptación de Clase 2](docs/clase-2.md).
 
 ## Ejecución
 
@@ -115,7 +110,7 @@ En Postman, usar **Import** y seleccionar estos archivos del repositorio:
 - [Colección ShipNow — Módulo 2](postman/ShipNow-Modulo-2.postman_collection.json).
 - [Entorno ShipNow Local](postman/ShipNow-Local.postman_environment.json).
 
-El entorno es opcional: la colección ya define `baseUrl=http://localhost:8080` y puede utilizarse con **No Environment**. Si falla la importación del entorno, crearlo manualmente con esa única variable o usar la variable de la colección. Ajustar el valor si el servidor usa otro puerto. La colección incluye verificaciones automáticas de respuesta, visibles en **Test Results** en el panel de respuesta después de pulsar **Send**. Ejecutar primero la carpeta **Consultas sin escritura**; la carpeta **Escrituras** agrega datos cada vez que se ejecuta.
+Seleccionar **ShipNow Local**, cuyo único valor es `baseUrl=http://localhost:8080`. Ajustarlo si el servidor usa otro puerto. La colección incluye verificaciones automáticas de respuesta. Ejecutar primero la carpeta **Consultas sin escritura**; la carpeta **Escrituras** agrega datos cada vez que se ejecuta.
 
 Probar primero GET `{{baseUrl}}/api/health`: debe responder 200 con `status: "ok"` y `timestamp`. Este endpoint informa que Express atiende peticiones; no consulta MongoDB.
 
@@ -160,7 +155,7 @@ Esperar **201**:
 }
 ```
 
-Cada POST agrega su propio lote con emails únicos `@example.test`; `generateData` no reutiliza perfiles de `/seed`. Si la base estaba vacía y se ejecutan únicamente `/seed?qty=10` y el ejemplo de `generateData` una vez, habrá **13 perfiles, 2 pedidos y 2 entregas**. Si además se ejecuta POST `/users?qty=2`, habrá **15 perfiles**.
+Cada POST agrega su propio lote con emails únicos `@example.test`; `generateData` no reutiliza perfiles de `/seed`. Si la base estaba vacía y se ejecuta cada POST una sola vez, habrá **13 perfiles, 2 pedidos y 2 entregas**.
 
 Para probar entregas sin repartidor, enviar `{"users":1,"orders":1,"deliveries":1}`. Se agrega otro lote, con entrega pendiente y sin campo `driver`.
 
@@ -209,12 +204,8 @@ Con la URI local apuntando a `shipnow_mock_dev`, ejecutar por separado:
 node --test test/integration/mocks-transaction.js
 ```
 
-Esta prueba no forma parte de `npm.cmd test`. Comprueba la base activa antes de cargar modelos, inserta un lote dentro de una transacción, provoca un fallo deliberado después de la última inserción y verifica que ninguno de esos documentos quede persistido. No borra datos anteriores ni ejecuta drops. Si MongoDB no soporta transacciones, la prueba falla en lugar de omitir la comprobación.
-
-La estudiante confirmó la ejecución manual de health y las peticiones GET y POST con los códigos esperados en Postman. Queda pendiente verificar las relaciones en Atlas y ejecutar la prueba optativa de rollback real; las respuestas HTTP correctas no sustituyen esas comprobaciones.
-
 ## Entrega
 
 Rama: `feature/backend-iii-modulo-2`. Revisar `git status --short --branch` y `git diff` antes de agregar los archivos nuevos y publicar. `package-lock.json` está versionado; no se agregaron paquetes. El commit y el push quedan a cargo de la revisión de la estudiante.
 
-Repositorio de esta entrega: [anitasm/curso-backend-modulo-2](https://github.com/anitasm/curso-backend-modulo-2). El ejercicio de puntos de fidelidad se entrega aparte en el campus. Los datos de Atlas no forman parte del repositorio; los JSON de `src/data` siguen siendo material histórico, sin importación automática.
+Repositorio de esta entrega: [anitasm/curso-backend-modulo-2](https://github.com/anitasm/curso-backend-modulo-2). 
