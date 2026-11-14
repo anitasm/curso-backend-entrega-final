@@ -2,7 +2,7 @@
 
 Aplicación de catálogo y carritos para accesorios, con Rina como tienda de ejemplo. Incluye perfiles de usuarios, generación de datos ficticios relacionados y consultas de pedidos. No realiza envíos ni pagos reales.
 
-Utiliza CommonJS, Express 4, Mongoose 9, Handlebars, Socket.io y Multer. Los generadores usan `node:crypto`; las pruebas usan `node:test`.
+Utiliza CommonJS, Express 4, Mongoose 9, Handlebars, Socket.io, Multer y Winston. Los generadores usan `node:crypto`; las pruebas usan `node:test`.
 
 ## Instalación y ejecución
 
@@ -46,8 +46,11 @@ Router → Controller → Service → Repository → Model / MongoDB
 - `src/mocks`: generación de perfiles, pedidos y entregas ficticios.
 - `src/errors`: clase `AppError` y diccionario de códigos, estados HTTP y mensajes públicos.
 - `src/middlewares/errors.js`: único emisor JSON de errores HTTP.
+- `src/utils/logger.js`: fábrica de Winston y cierre de transportes.
+- `src/utils/log-events.js`: eventos constantes y lista de metadatos permitidos.
+- `src/utils/request-context.js`: contexto por petición con AsyncLocalStorage.
 
-Los controllers propagan errores mediante `next(error)`. El orden de Express es parsers y rutas → ruta desconocida → middleware global de cuatro parámetros. Si ya se enviaron cabeceras, el middleware deriva el error a `next`.
+Los controllers propagan errores mediante `next(error)`. El orden de Express es contexto y logging HTTP → parsers y rutas → ruta desconocida → middleware global de cuatro parámetros. Si ya se enviaron cabeceras, un manejador final registra el fallo y cierra la respuesta parcial, sin intentar emitir otro JSON ni exponer la excepción.
 
 ## API y vistas
 
@@ -156,17 +159,62 @@ Importar la colección [Errores HTTP](postman/ShipNow-Errores.postman_collection
 
 Los casos con mocks requieren `development` o `test`. Los IDs de ejemplo deben estar ausentes de la base. El caso 403 está en una carpeta separada: para probarlo, seleccionar localmente otra base en la URI y reiniciar; la petición debe bloquearse antes de insertar. Restaurar la base dedicada y reiniciar para las cargas exitosas. No ejecutar ese caso esperando 403 sobre la base dedicada: allí crearía un perfil.
 
+## Logging y monitoreo básico
+
+El servidor inicializa un único logger después de validar la configuración. Importar la aplicación o la fábrica del logger no abre archivos ni conecta servicios. Los tests pueden inyectar un logger sin archivos.
+
+| Nivel | Prioridad | Uso |
+| --- | --- | --- |
+| `fatal` | 0 | Fallos terminales de configuración, conexión o servidor |
+| `error` | 1 | Errores HTTP 5xx |
+| `warning` | 2 | Errores HTTP 4xx y avisos operativos de mejor esfuerzo |
+| `info` | 3 | Arranque, conexión y lotes confirmados |
+| `http` | 4 | Acceso HTTP: método, estado y duración |
+| `debug` | 5 | Inicio de generación con cantidades validadas |
+
+Winston admite los niveles con prioridad numérica menor o igual al umbral. En `development` y `test`, la consola muestra desde `debug`, con timestamp y metadatos legibles. En `production`, muestra desde `info` en JSON; no incluye accesos `http` ni eventos `debug`. No se requiere una variable adicional.
+
+El archivo admite únicamente `error` y `fatal`, independientemente del umbral de consola. Se escribe JSON por línea en `logs/errors-%DATE%.log`, con fecha `YYYY-MM-DD`, rotación a los 10 MB y retención de 14 días. La auditoría usa `logs/.errors-audit.json`; no se crean enlaces simbólicos. Git ignora `/logs/` y `*.log`, y nodemon excluye `logs/**` para evitar reinicios por la rotación.
+
+Si falla el archivo, se deshabilita ese destino y se emite un aviso operativo constante, una sola vez, sin interrumpir la consola ni las respuestas HTTP. El cierre espera el vaciado de logs. Un fallo real de arranque registra `fatal` y termina con código distinto de cero.
+
+Cada petición recibe un UUID generado por el servidor en `X-Request-Id`. AsyncLocalStorage correlaciona acceso, error y generación de mocks, incluso con solicitudes simultáneas. El acceso registra duración con reloj monotónico; los éxitos de mocks se registran después de confirmar la transacción, fuera de su callback reintentable.
+
+Los metadatos se filtran mediante una lista de permitidos. No se registran URLs ni segmentos dinámicos, query, body, credenciales, cookies, datos personales, excepciones crudas, causas ni stacks. Los mensajes son constantes o provienen del diccionario público de errores.
+
+Ejemplo ficticio de registro:
+
+```json
+{"timestamp":"2026-01-01T12:00:00.000Z","level":"error","message":"Error interno del servidor","event":"http.error","code":"INTERNAL_SERVER_ERROR","statusCode":500,"method":"GET","requestId":"12345678-1234-4234-8234-123456789abc"}
+```
+
+### Diagnóstico con Postman
+
+1. Importar [Errores HTTP y logging](postman/ShipNow-Errores.postman_collection.json) y ajustar su variable `baseUrl` al puerto configurado, por ejemplo `http://localhost:8080`.
+2. En `development` o `test`, ejecutar la carpeta **03 - Logging sin escrituras**. GET `/loggerTest` devuelve 200 y `{"status":"success","message":"Logs de diagnóstico generados"}`.
+3. Abrir **Test Results** y copiar `X-Request-Id` desde las cabeceras de respuesta. En consola aparecen seis eventos `logger.test`, uno por nivel, con `synthetic: true`, y un acceso `http.access`. El `fatal` simulado no apaga el servidor.
+4. Enviar GET `/api/health`: devuelve 200 con `status: "ok"` y su propio ID. Enviar GET `/api/mocks/users?qty=-1`: devuelve 400 `INVALID_MOCK_AMOUNT` y genera un `warning`, sin insertar datos.
+5. Buscar el ID del diagnóstico en la consola y en los archivos para correlacionar esa petición. En producción, `/loggerTest` responde el 404 habitual `ROUTE_NOT_FOUND` y no emite eventos simulados.
+
+Desde PowerShell en la raíz, luego del diagnóstico:
+
+```powershell
+$requestId = "PEGAR-EL-X-REQUEST-ID-DEL-DIAGNOSTICO"
+$entries = @(Get-ChildItem -LiteralPath .\logs -File |
+  Where-Object { $_.Name -match "^errors-.*\.log(\.\d+)?$" } |
+  Get-Content | Where-Object { $_.Trim() } | ConvertFrom-Json)
+$entries | Where-Object { $_.requestId -eq $requestId }
+$unexpected = @($entries | Where-Object { $_.level -notin @("error", "fatal") })
+if ($entries.Count -eq 0) { throw "No hay registros: ejecutar primero el diagnóstico." }
+if ($unexpected.Count -gt 0) { throw "Se encontraron niveles inesperados." }
+"Archivo verificado: solo error y fatal."
+```
+
+El ID del diagnóstico debe tener dos registros persistidos: `error` y `fatal`. Los avisos 4xx quedan en consola, no en estos archivos.
+
 ## Pruebas y verificación
 
-Última verificación: **14 de noviembre de 2026**.
-
-| Comprobación | Resultado |
-| --- | --- |
-| Suite automatizada de servicios, repositorios y HTTP | 53 pruebas aprobadas, 0 fallidas |
-| Integración de rollback con MongoDB real en `shipnow_mock_dev` | 1 prueba aprobada, 0 fallidas |
-| Total | **54 pruebas aprobadas, sin fallos ni pruebas omitidas** |
-
-La verificación cubre los contratos HTTP, las validaciones de dominio, la protección de mensajes internos, las relaciones generadas y las regresiones del catálogo. La prueba de integración confirmó que un fallo posterior a la última inserción revierte el lote completo, sin dejar sus documentos persistidos. Los resultados corresponden a los casos y al entorno de esta ejecución.
+Las verificaciones se reproducen con los comandos siguientes; sus resultados dependen del código y del entorno de ejecución.
 
 ### Suite local
 
@@ -174,7 +222,7 @@ La verificación cubre los contratos HTTP, las validaciones de dominio, la prote
 npm.cmd test
 ```
 
-La suite usa servidores efímeros y dobles de persistencia, sin conectar a Atlas. Comprueba catálogo, carritos, perfiles, uploads, Socket.io, pedidos, errores HTTP, mensajes seguros, límites y coordinación transaccional. Los fallos de base se simulan con dobles; no es necesario desconectar una base real.
+La suite usa servidores efímeros y dobles de persistencia, sin conectar a Atlas. Comprueba catálogo, carritos, perfiles, uploads, Socket.io, pedidos, errores HTTP, mensajes seguros, límites y coordinación transaccional. También verifica niveles y rotación de Winston en directorios temporales, fallos de escritura, correlación de peticiones simultáneas, confidencialidad y cierre del servidor ante fallos de arranque. Los fallos de base se simulan con dobles; no es necesario desconectar una base real.
 
 ### Integración con MongoDB
 

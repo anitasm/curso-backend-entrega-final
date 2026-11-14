@@ -1,6 +1,6 @@
 {
   "info": {
-    "name": "ShipNow - Errores HTTP",
+    "name": "ShipNow - Errores HTTP y logging",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "description": "Errores de dominio y contrato HTTP. Ejecutar en development/test. El caso 403 requiere una base distinta de shipnow_mock_dev; sobre la base dedicada insertaría datos."
   },
@@ -267,6 +267,75 @@
                 "exec": [
                   "pm.test('Código HTTP esperado', () => pm.response.to.have.status(403));",
                   "pm.test('Contrato de error', () => { const data = pm.response.json(); pm.expect(data).to.have.all.keys('status', 'error', 'message'); pm.expect(data.status).to.eql('error'); pm.expect(data.error).to.eql('MOCK_DATABASE_FORBIDDEN'); pm.expect(data.message).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 - Logging sin escrituras",
+      "description": "Ejecutar en development/test. El fatal de diagnóstico es simulado; revisar los archivos locales para comprobar los niveles persistidos.",
+      "item": [
+        {
+          "name": "Diagnóstico de seis niveles",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/loggerTest"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Código HTTP esperado', () => pm.response.to.have.status(200));",
+                  "pm.test('X-Request-Id es UUID v4', () => pm.expect(pm.response.headers.get('X-Request-Id')).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i));",
+                  "pm.test('Diagnóstico', () => pm.expect(pm.response.json()).to.eql({status:'success',message:'Logs de diagnóstico generados'}));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Health después del diagnóstico",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/health"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Código HTTP esperado', () => pm.response.to.have.status(200));",
+                  "pm.test('X-Request-Id es UUID v4', () => pm.expect(pm.response.headers.get('X-Request-Id')).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i));",
+                  "pm.test('Servicio disponible', () => { const data=pm.response.json(); pm.expect(data.status).to.eql('ok'); pm.expect(data.timestamp).to.be.a('string'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Warning sin escrituras",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/mocks/users?qty=-1"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Código HTTP esperado', () => pm.response.to.have.status(400));",
+                  "pm.test('X-Request-Id es UUID v4', () => pm.expect(pm.response.headers.get('X-Request-Id')).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i));",
+                  "pm.test('Contrato de error', () => { const data=pm.response.json(); pm.expect(data).to.have.all.keys('status','error','message'); pm.expect(data.status).to.eql('error'); pm.expect(data.error).to.eql('INVALID_MOCK_AMOUNT'); });"
                 ]
               }
             }

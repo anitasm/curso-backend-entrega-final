@@ -1,6 +1,7 @@
 const { randomBytes } = require('node:crypto');
 const { USER_ROLES, MOCKING_PARAMETERS } = require('../constants');
 const v = require('../utils/validation');
+const { logEvent } = require('../utils/log-events');
 const { persist } = require('../repositories/persistence');
 const generateUsers = require('../mocks/users.generator');
 const generateOrders = require('../mocks/orders.generator');
@@ -32,8 +33,8 @@ function batchCounts(input) {
 }
 
 class MocksService {
-  constructor({ usersRepository, ordersRepository, deliveriesRepository, assertMockDatabase, withTransaction }) {
-    Object.assign(this, { usersRepository, ordersRepository, deliveriesRepository, assertMockDatabase, withTransaction });
+  constructor({ usersRepository, ordersRepository, deliveriesRepository, assertMockDatabase, withTransaction, logger }) {
+    Object.assign(this, { usersRepository, ordersRepository, deliveriesRepository, assertMockDatabase, withTransaction, logger });
   }
 
   runTransaction(work) {
@@ -55,7 +56,10 @@ class MocksService {
   async seedUsers(query = {}, { requireQuantity = false } = {}) {
     const count = quantity(query, requireQuantity);
     await this.assertMockDatabase();
-    return this.runTransaction(session => this.usersRepository.insertMany(generateUsers(count), session));
+    logEvent('debug', 'mocks.started', { operation: 'seedUsers', users: Math.ceil(count / 2), drivers: Math.floor(count / 2) }, this.logger);
+    const users = await this.runTransaction(session => this.usersRepository.insertMany(generateUsers(count), session));
+    logEvent('info', 'mocks.committed', { operation: 'seedUsers', users: users.filter(u => u.role === USER_ROLES.USER).length, drivers: users.filter(u => u.role === USER_ROLES.DRIVER).length }, this.logger);
+    return users;
   }
 
   async seed(query = {}) {
@@ -67,7 +71,8 @@ class MocksService {
     v.fields(query, [], 'INVALID_MOCK_DATA');
     const counts = batchCounts(input);
     await this.assertMockDatabase();
-    return this.runTransaction(async session => {
+    logEvent('debug', 'mocks.started', { operation: 'generateData', ...counts }, this.logger);
+    const result = await this.runTransaction(async session => {
       // All arrays are local to this attempt: a driver retry rebuilds the full batch.
       const users = counts.users ? await this.usersRepository.insertMany(generateUsers(counts.users, USER_ROLES.USER), session) : [];
       const drivers = counts.drivers ? await this.usersRepository.insertMany(generateUsers(counts.drivers, USER_ROLES.DRIVER), session) : [];
@@ -81,6 +86,8 @@ class MocksService {
       }), session) : [];
       return { users: users.length, drivers: drivers.length, orders: orders.length, deliveries: deliveries.length };
     });
+    logEvent('info', 'mocks.committed', { operation: 'generateData', ...result }, this.logger);
+    return result;
   }
 }
 

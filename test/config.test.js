@@ -17,7 +17,8 @@ test('Arranque aislado: valores vacíos o inválidos impiden conectar y escuchar
   const server=path.resolve(__dirname,'../src/server.js');
   for(const patch of [{PORT:''},{PORT:'8080abc'},{NODE_ENV:''},{NODE_ENV:'other'},{MONGODB_URI:''},{MONGODB_URI:'https://invalid'}]) {
     // Explicit empty sentinels cannot be replaced by the real local .env (override:false).
-    const child=spawnSync(process.execPath,[server],{env:{...process.env,...good,...patch},encoding:'utf8',timeout:5000});
+    const code='require('+JSON.stringify(server)+').startServer({loggerFactory: o => require('+JSON.stringify(path.resolve(__dirname,'../src/utils/logger.js'))+').createLogger({...o,file:false})});';
+    const child=spawnSync(process.execPath,['-e',code],{env:{...process.env,...good,...patch},encoding:'utf8',timeout:5000});
     assert.equal(child.status,1,child.stderr);assert.match(child.stderr,/Configuración inválida/);assert.doesNotMatch(child.stdout,/escuchando/);
     assert.doesNotMatch(child.stderr,/mongodb:\/\/localhost/);
   }

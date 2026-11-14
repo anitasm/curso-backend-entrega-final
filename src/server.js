@@ -4,11 +4,33 @@ const { loadConfig } = require('./config/env.config');
 const { connectDB, disconnectDB } = require('./config/db');
 const createApp = require('./app');
 const { registerProductSocket } = require('./sockets/products');
-async function startServer() {
-  let server;
+const { createLogger } = require('./utils/logger');
+const { logEvent, startupCodes } = require('./utils/log-events');
+async function startServer({ loggerFactory = createLogger } = {}) {
+  let server, io, logger;
+  let connectionAttempted = false;
+  let stage = 'server.config_failed';
+  let closing;
+  const onSignal = () => { void close(); };
+  async function close() {
+    if (closing) return closing;
+    closing = (async () => {
+      process.removeListener('SIGINT', onSignal);
+      process.removeListener('SIGTERM', onSignal);
+      try {
+        if (io) await new Promise(resolve => io.close(resolve));
+        else if (server?.listening) await new Promise(resolve => server.close(resolve));
+      } catch { logEvent('warning', 'server.cleanup_failed', {}, logger); }
+      try { if (connectionAttempted) await disconnectDB(); }
+      catch { logEvent('warning', 'server.cleanup_failed', {}, logger); }
+      await logger?.shutdown?.();
+    })();
+    return closing;
+  }
   try {
     const config = loadConfig();
-    // Compose only after validation. Tests explicitly inject their own repositories.
+    logger = loggerFactory({ nodeEnv: config.nodeEnv });
+    stage = 'server.prepare_failed';
     const ProductsRepository = require('./repositories/products.repository');
     const UsersRepository = require('./repositories/users.repository');
     const CartsRepository = require('./repositories/carts.repository');
@@ -22,8 +44,11 @@ async function startServer() {
     const productsService = new ProductsService(new ProductsRepository());
     const usersService = new UsersService(new UsersRepository());
     const cartsService = new CartsService(new CartsRepository(), productsService);
+    stage = 'server.database_failed';
+    connectionAttempted = true;
     await connectDB(config.mongoUri);
-    // Wait for the unique indexes before accepting writes.
+    logEvent('info', 'database.connected', { nodeEnv: config.nodeEnv }, logger);
+    stage = 'server.prepare_failed';
     await Promise.all([new ProductsRepository().initialize(), new UsersRepository().initialize()]);
     let mocksService;
     if (['development', 'test'].includes(config.nodeEnv)) {
@@ -31,28 +56,42 @@ async function startServer() {
       const MocksService = require('./services/mocks.service');
       const createMockPersistence = require('./repositories/mock-transaction');
       const deliveriesRepository = new DeliveriesRepository();
-      // Create collections/indexes before any request can open a transaction.
       await Promise.all([ordersRepository.initialize(), deliveriesRepository.initialize()]);
       mocksService = new MocksService({
         usersRepository: new UsersRepository(), ordersRepository, deliveriesRepository,
-        ...createMockPersistence(),
+        ...createMockPersistence(), logger,
       });
     }
-    const app = createApp({ productsService, usersService, cartsService, mocksService, ordersService, nodeEnv: config.nodeEnv });
+    const app = createApp({ productsService, usersService, cartsService, mocksService, ordersService, nodeEnv: config.nodeEnv, logger });
     server = http.createServer(app);
-    const io = new Server(server);
+    io = new Server(server);
     app.set('io', io);
-    registerProductSocket(io, productsService);
-    await new Promise((resolve, reject) => { server.once('error', reject); server.listen(config.port, resolve); });
-    server.on('error', () => { console.error('Error del servidor HTTP'); process.exitCode = 1; server.close(); void disconnectDB(); });
-    console.log('ShipNow / Rina escuchando en http://localhost:' + config.port);
-    return { app, server, io };
+    registerProductSocket(io, productsService, logger);
+    stage = 'server.listen_failed';
+    await new Promise((resolve, reject) => {
+      const failed = error => { server.removeListener('listening', ready); reject(error); };
+      const ready = () => { server.removeListener('error', failed); resolve(); };
+      server.once('error', failed);
+      server.once('listening', ready);
+      server.listen(config.port);
+    });
+    server.on('error', () => {
+      if (closing) return;
+      process.exitCode = 1;
+      logEvent('fatal', 'server.failed', { code: startupCodes['server.failed'] }, logger);
+      void close();
+    });
+    process.once('SIGINT', onSignal);
+    process.once('SIGTERM', onSignal);
+    logEvent('info', 'server.started', { port: config.port, nodeEnv: config.nodeEnv }, logger);
+    return { app, server, io, logger, close };
   } catch (error) {
-    const message = error.message.startsWith('Configuración inválida:') || error.message.startsWith('No se pudo conectar') ? error.message : error.code === 'EADDRINUSE' ? 'El puerto configurado está ocupado' : 'No se pudo iniciar la aplicación';
-    console.error(message);
-    if (server) server.close();
-    await disconnectDB();
     process.exitCode = 1;
+    // Invalid configuration cannot choose the logging policy or leak input values.
+    if (!logger) logger = loggerFactory({ nodeEnv: 'production' });
+    const event = stage === 'server.listen_failed' && error.code === 'EADDRINUSE' ? 'server.port_in_use' : stage;
+    logEvent('fatal', event, { code: startupCodes[event] }, logger);
+    await close();
   }
 }
 if (require.main === module) void startServer();
