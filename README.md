@@ -15,7 +15,7 @@ npm.cmd ci
 if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 ```
 
-Copiar la plantilla solo si todavía no existe `.env`. Completar sus variables localmente:
+Completar las variables de `.env` localmente:
 
 | Variable | Configuración |
 | --- | --- |
@@ -156,7 +156,19 @@ Importar la colección [Errores HTTP](postman/ShipNow-Errores.postman_collection
 
 Los casos con mocks requieren `development` o `test`. Los IDs de ejemplo deben estar ausentes de la base. El caso 403 está en una carpeta separada: para probarlo, seleccionar localmente otra base en la URI y reiniciar; la petición debe bloquearse antes de insertar. Restaurar la base dedicada y reiniciar para las cargas exitosas. No ejecutar ese caso esperando 403 sobre la base dedicada: allí crearía un perfil.
 
-## Pruebas automatizadas
+## Pruebas y verificación
+
+Última verificación: **14 de noviembre de 2026**.
+
+| Comprobación | Resultado |
+| --- | --- |
+| Suite automatizada de servicios, repositorios y HTTP | 53 pruebas aprobadas, 0 fallidas |
+| Integración de rollback con MongoDB real en `shipnow_mock_dev` | 1 prueba aprobada, 0 fallidas |
+| Total | **54 pruebas aprobadas, sin fallos ni pruebas omitidas** |
+
+La verificación cubre los contratos HTTP, las validaciones de dominio, la protección de mensajes internos, las relaciones generadas y las regresiones del catálogo. La prueba de integración confirmó que un fallo posterior a la última inserción revierte el lote completo, sin dejar sus documentos persistidos. Los resultados corresponden a los casos y al entorno de esta ejecución.
+
+### Suite local
 
 ```powershell
 npm.cmd test
@@ -164,7 +176,9 @@ npm.cmd test
 
 La suite usa servidores efímeros y dobles de persistencia, sin conectar a Atlas. Comprueba catálogo, carritos, perfiles, uploads, Socket.io, pedidos, errores HTTP, mensajes seguros, límites y coordinación transaccional. Los fallos de base se simulan con dobles; no es necesario desconectar una base real.
 
-La comprobación real de rollback es independiente:
+### Integración con MongoDB
+
+La comprobación real de rollback se ejecuta por separado:
 
 ```powershell
 node --test test/integration/mocks-transaction.js
