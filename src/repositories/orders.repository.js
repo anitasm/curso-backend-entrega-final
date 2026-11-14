@@ -3,6 +3,7 @@ const { normalize, persist } = require('./persistence');
 
 const PUBLIC_FIELDS = 'customer items deliveryAddress total status priority createdAt updatedAt';
 class OrdersRepository {
+  create(data) { return persist(async () => normalize(await Order.create(data))); }
   get(id) { return persist(async () => normalize(await Order.findById(id).select(PUBLIC_FIELDS).lean())); }
   list({ page, limit, status }) {
     return persist(async () => {

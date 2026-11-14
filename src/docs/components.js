@@ -21,6 +21,8 @@ const schemas = {
   MockDriver: { allOf: [ref('MockUser'), object({ role: { type: 'string', enum: ['driver'] } })] },
   LocalizedUser: object({ nombre: text, email: { type: 'string', format: 'email' }, rol: { type: 'string', enum: ['cliente', 'repartidor'] } }),
   OrderItem: object({ name: text, quantity: { type: 'integer', minimum: 1 }, price: { type: 'number', minimum: 0 } }),
+  OrderItemInput: object({ name: text, quantity: { type: 'integer', minimum: 1, maximum: Number.MAX_SAFE_INTEGER }, price: { type: 'number', minimum: 0 } }, undefined, { additionalProperties: false }),
+  OrderCreate: object({ customer: ref('Id'), items: { type: 'array', items: ref('OrderItemInput'), minItems: 1 }, deliveryAddress: text, priority: { type: 'string', enum: Object.values(DELIVERY_PRIORITY), default: DELIVERY_PRIORITY.NORMAL } }, ['customer', 'items', 'deliveryAddress'], { additionalProperties: false, description: 'Solo JSON. El cliente debe existir y tener rol user. quantity y price deben ser números JSON; no se convierten cadenas. El servidor calcula un total finito y asigna status=created. No crea entregas.', example: { customer: '000000000000000000000001', items: [{ name: 'Aro ficticio', quantity: 2, price: 125.5 }], deliveryAddress: 'Calle Ficticia 100', priority: 'normal' } }),
   OrderFields: object({ customer: ref('Id'), items: { ...array('OrderItem'), minItems: 1 }, deliveryAddress: text, total: { type: 'number', minimum: 0, description: 'Suma de quantity × price de los items.' }, status: { type: 'string', enum: Object.values(ORDER_STATUS) }, priority: { type: 'string', enum: Object.values(DELIVERY_PRIORITY) } }),
   Order: { allOf: [ref('OrderFields'), ref('Persistence')] },
   MockOrder: { allOf: [ref('OrderFields')], description: 'Vista previa sin campos de persistencia; customer es una referencia simulada.' },
@@ -56,13 +58,14 @@ errors('PaginationError', ['VALIDATION_ERROR'], { VALIDATION_ERROR: 'limit no pu
 errors('InvalidId', ['INVALID_ID']);
 errors('UserInputError', ['VALIDATION_ERROR', 'INVALID_JSON'], { VALIDATION_ERROR: 'firstName debe ser texto no vacío' });
 errors('UserUpdateError', ['INVALID_ID', 'VALIDATION_ERROR', 'INVALID_JSON'], { VALIDATION_ERROR: 'Actualización vacía' });
+errors('OrderInputError', ['INVALID_ID', 'VALIDATION_ERROR', 'INVALID_JSON'], { VALIDATION_ERROR: 'items debe ser un arreglo no vacío' });
 errors('OrderFilterError', ['INVALID_ORDER_STATUS', 'VALIDATION_ERROR']);
 errors('DeliveryFilterError', ['INVALID_DELIVERY_STATUS', 'VALIDATION_ERROR']);
 errors('MockQueryError', ['INVALID_MOCK_AMOUNT', 'INVALID_MOCK_DATA'], { INVALID_MOCK_AMOUNT: 'qty debe ser un entero decimal entre 1 y 100', INVALID_MOCK_DATA: 'Campo no permitido' });
 errors('MockWriteQueryError', ['INVALID_MOCK_AMOUNT', 'INVALID_MOCK_DATA', 'INVALID_JSON', 'VALIDATION_ERROR'], { INVALID_MOCK_AMOUNT: 'qty debe ser un entero decimal entre 1 y 100', INVALID_MOCK_DATA: 'Campo no permitido' });
 errors('MockInputError', ['INVALID_MOCK_AMOUNT', 'INVALID_MOCK_DATA', 'INVALID_JSON', 'VALIDATION_ERROR'], { INVALID_MOCK_AMOUNT: 'El lote debe contener entre 1 y 100 registros en total', INVALID_MOCK_DATA: 'Para generar pedidos se requiere al menos un cliente (users)' });
 errors('MockConflict', ['USER_ALREADY_EXISTS', 'DUPLICATE_KEY']);
-for (const code of ['USER_NOT_FOUND', 'ORDER_NOT_FOUND', 'DELIVERY_NOT_FOUND', 'USER_ALREADY_EXISTS', 'DATABASE_ERROR', 'ROUTE_NOT_FOUND', 'MOCK_DATABASE_FORBIDDEN', 'MOCK_GENERATION_ERROR', 'MOCK_TRANSACTIONS_REQUIRED', 'PAYLOAD_TOO_LARGE']) errors(code, [code]);
+for (const code of ['USER_NOT_FOUND', 'ORDER_NOT_FOUND', 'DELIVERY_NOT_FOUND', 'USER_ALREADY_EXISTS', 'DUPLICATE_KEY', 'DATABASE_ERROR', 'ROUTE_NOT_FOUND', 'MOCK_DATABASE_FORBIDDEN', 'MOCK_GENERATION_ERROR', 'MOCK_TRANSACTIONS_REQUIRED', 'PAYLOAD_TOO_LARGE']) errors(code, [code]);
 const parameters = {
   Page: { name: 'page', in: 'query', description: 'Página solicitada. No se aceptan parámetros repetidos.', schema: { type: 'integer', minimum: 1, default: 1 } },
   Limit: { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 100, default: 10 } },

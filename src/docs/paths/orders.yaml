@@ -48,6 +48,62 @@ paths:
           $ref: "#/components/responses/OrderFilterError"
         "500":
           $ref: "#/components/responses/DATABASE_ERROR"
+    post:
+      tags:
+        - "Orders"
+      operationId: "createOrder"
+      summary: "Crear un pedido"
+      description: "Alta ordinaria en la base configurada; no exige shipnow_mock_dev. Requiere customer existente con rol user. Solo JSON, con campos permitidos a nivel raíz e item. Rechaza total, status, IDs de persistencia y propiedades extra. Calcula total=sum(quantity*price), que debe ser finito, y asigna created. priority omitida equivale a normal. No crea usuarios, productos ni entregas. Los mensajes 400 son contextuales: items vacío, prioridad inválida, cliente con rol incompatible o tipos numéricos inválidos."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderCreate"
+            example:
+              customer: "000000000000000000000001"
+              items:
+                - name: "Aro ficticio"
+                  quantity: 2
+                  price: 125.5
+              deliveryAddress: "Calle Ficticia 100"
+              priority: "normal"
+      responses:
+        "201":
+          description: "Pedido creado"
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderResult"
+              example:
+                status: "success"
+                payload:
+                  customer: "000000000000000000000001"
+                  items:
+                    - name: "Aro ficticio"
+                      quantity: 2
+                      price: 125.5
+                  deliveryAddress: "Calle Ficticia 100"
+                  priority: "normal"
+                  total: 251
+                  status: "created"
+                  _id: "000000000000000000000002"
+                  id: "000000000000000000000002"
+                  createdAt: "2026-01-01T12:00:00.000Z"
+                  updatedAt: "2026-01-01T12:00:00.000Z"
+        "400":
+          $ref: "#/components/responses/OrderInputError"
+        "404":
+          $ref: "#/components/responses/USER_NOT_FOUND"
+        "409":
+          $ref: "#/components/responses/DUPLICATE_KEY"
+        "413":
+          $ref: "#/components/responses/PAYLOAD_TOO_LARGE"
+        "500":
+          $ref: "#/components/responses/DATABASE_ERROR"
   /api/orders/{oid}:
     get:
       tags:

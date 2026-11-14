@@ -1,8 +1,8 @@
 # ShipNow / Rina
 
-Aplicación de catálogo y carritos para accesorios, con Rina como tienda de ejemplo. Incluye perfiles de usuarios, generación de datos ficticios relacionados y consultas de pedidos y entregas. No realiza envíos ni pagos reales.
+Aplicación de catálogo y carritos para accesorios, con Rina como tienda de ejemplo. Incluye perfiles de usuarios, generación de datos ficticios relacionados alta y consultas de pedidos, y consultas de entregas. No realiza envíos ni pagos reales.
 
-Utiliza CommonJS, Express 4, Mongoose 9, Handlebars, Socket.io, Multer y Winston. Los generadores usan `node:crypto`; las pruebas usan `node:test`.
+Utiliza CommonJS, Express 4, Mongoose 9, Handlebars, Socket.io, Multer y Winston. Los generadores usan `node:crypto`; las regresiones usan `node:test` y la suite funcional utiliza Mocha, Chai y Supertest.
 
 ## Instalación y ejecución
 
@@ -72,6 +72,7 @@ Las respuestas de éxito de las API usan `status: "success"` y `payload`, salvo 
 | PUT / DELETE | `/api/carts/:cid/products/:pid` | Cambiar cantidad / quitar producto |
 | GET | `/api/orders/:oid` | Consultar un pedido persistido |
 | GET | `/api/orders` | Listar pedidos, con `status`, `page` y `limit` opcionales |
+| POST | `/api/orders` | Crear un pedido con cliente existente, total calculado y estado inicial `created` |
 | GET | `/api/deliveries` | Listar entregas persistidas, con `status`, `page` y `limit` opcionales |
 | GET | `/api/deliveries/:did` | Consultar una entrega persistida |
 
@@ -83,6 +84,25 @@ Los perfiles contienen `firstName`, `lastName`, `email` y `role`, sin contraseñ
 
 Vistas: `/` redirige a `/products`; también están disponibles `/products/:pid`, `/realtimeproducts` y `/carts/:cid`. Se conservan sus imágenes y eventos de actualización del catálogo.
 
+### Alta de pedidos
+
+POST `/api/orders` acepta exclusivamente un cuerpo JSON con `customer`, `items` y `deliveryAddress`; `priority` es opcional (`low`, `normal` o `high`, por defecto `normal`). Ejemplo ficticio: el ID de cliente debe sustituirse por el de un perfil existente con rol `user`.
+
+```json
+{
+  "customer": "000000000000000000000001",
+  "items": [{ "name": "Aro ficticio", "quantity": 2, "price": 125.5 }],
+  "deliveryAddress": "Calle Ficticia 100",
+  "priority": "normal"
+}
+```
+
+Cada item permite solo `name`, `quantity` y `price`. La cantidad debe ser un entero seguro positivo y el precio un número finito no negativo; no se convierten cadenas numéricas. Los textos deben ser no vacíos. Se rechazan campos extra, incluidos `total`, `status`, `id` y `_id`. Toda la validación sintáctica ocurre antes de consultar al cliente.
+
+El servidor calcula `total = sum(quantity * price)`, comprueba que sea finito y fija `status: "created"`. Responde 201 con `{status: "success", payload: order}`; en el ejemplo, el total es 251. Incluye los IDs y timestamps de persistencia. Un cliente válido inexistente produce 404 `USER_NOT_FOUND`; un ID mal formado, 400 `INVALID_ID`; un rol incompatible, prioridad o datos inválidos, 400 `VALIDATION_ERROR`. El parser conserva 400 `INVALID_JSON` y 413 `PAYLOAD_TOO_LARGE`; la persistencia traduce conflictos a 409 `DUPLICATE_KEY` y fallos internos a 500 `DATABASE_ERROR`.
+
+El alta ordinaria escribe en la base configurada de la aplicación, sin exigir `shipnow_mock_dev`. Solo crea el pedido: no crea cliente, producto ni entrega. No hay endpoint de actualización de estado. Tras confirmar la escritura se registra un evento `info` `order.created` correlacionado con `X-Request-Id`, sin direcciones, correos ni IDs del cliente. Para verificar el alta sin modificar la base de trabajo, usar la suite funcional aislada.
+
 ## Documentación OpenAPI
 
 La UI y el JSON están disponibles en desarrollo, pruebas y producción. La especificación se construye una vez por proceso con swagger-jsdoc, usando rutas absolutas independientes del directorio de ejecución. No requiere autenticación. Abrir la documentación no modifica datos; **Try it out ejecuta peticiones reales**.
@@ -90,13 +110,13 @@ La UI y el JSON están disponibles en desarrollo, pruebas y producción. La espe
 | Tag | Alcance |
 | --- | --- |
 | Users | Listado, alta, detalle, actualización parcial mediante PUT y eliminación |
-| Orders | Listado con filtros y detalle de pedidos persistidos |
+| Orders | Alta, listado con filtros y detalle de pedidos persistidos |
 | Deliveries | Listado con filtros y detalle de entregas persistidas |
 | Mocks | Vistas previas y cargas ficticias transaccionales |
 | Logger | Diagnóstico de los seis niveles de logging |
 | Health | Disponibilidad HTTP independiente de MongoDB |
 
-La especificación cubre 19 operaciones y reutiliza schemas, parámetros y respuestas. Productos, carritos, vistas y sockets conservan el alcance descrito en este README. Mocks y Logger se muestran en Swagger, pero sus rutas siguen respondiendo 404 `ROUTE_NOT_FOUND` en producción.
+La especificación cubre 20 operaciones y reutiliza schemas, parámetros y respuestas. Productos, carritos, vistas y sockets conservan el alcance descrito en este README. Mocks y Logger se muestran en Swagger, pero sus rutas siguen respondiendo 404 `ROUTE_NOT_FOUND` en producción.
 
 ### Recorrido en navegador
 
@@ -269,17 +289,37 @@ if ($unexpected.Count -gt 0) { throw "Se encontraron niveles inesperados." }
 
 El ID del diagnóstico debe tener dos registros persistidos: `error` y `fatal`. Los avisos 4xx quedan en consola, no en estos archivos.
 
-## Pruebas y verificación
+## Testing
 
-Las verificaciones se reproducen con los comandos siguientes; sus resultados dependen del código y del entorno de ejecución.
+Instalar las dependencias, incluidas las de desarrollo, desde el lock:
 
-### Suite local
+```powershell
+npm.cmd ci
+```
+
+La suite completa ejecuta primero las regresiones y después las pruebas funcionales:
 
 ```powershell
 npm.cmd test
 ```
 
-La suite usa servidores efímeros y dobles de persistencia, sin conectar a Atlas. Comprueba catálogo, carritos, perfiles, uploads, Socket.io, pedidos, entregas, errores HTTP, mensajes seguros, límites y coordinación transaccional. También verifica niveles y rotación de Winston en directorios temporales, fallos de escritura, correlación de peticiones simultáneas, confidencialidad y cierre del servidor ante fallos de arranque. Valida OpenAPI con Swagger Parser y resolución externa deshabilitada, sus referencias internas, las 19 operaciones contra HTTP, los assets y el script de Swagger, y la carga desde otro directorio. Los fallos de base se simulan con dobles; no es necesario desconectar una base real.
+También se pueden ejecutar por separado:
+
+```powershell
+npm.cmd run test:regression
+npm.cmd run test:functional
+```
+
+- **node:test** (`test/`): regresiones de catálogo, carritos, vistas, uploads, Socket.io, perfiles, pedidos, entregas, mocks, persistencia, configuración y logging. Valida OpenAPI y sus referencias internas sin resolución externa, el inventario de 20 operaciones y los assets de Swagger.
+- **Mocha** (`tests/functional/`): organiza los casos por recurso y ejecuta hooks de preparación y limpieza. **Chai** verifica estados HTTP, cabeceras, contratos y valores. **Supertest** envía peticiones a `createApp(...)` con routers, parsers, controllers, servicios y middleware reales.
+
+La configuración funcional está en `tests/support/`. Un preload exclusivo de Mocha fija `NODE_ENV=test`, y cada fábrica recibe el entorno explícitamente; los casos de producción lo seleccionan por app. **No hay variables que completar, no se lee .env, no se usa MONGODB_URI y no se necesita MongoDB ni un servidor iniciado previamente.**
+
+El equivalente de una base de test son repositorios efímeros en memoria, independientes de la configuración de desarrollo. `beforeEach` crea fixtures, logger y app nuevos; `afterEach` descarta su estado. Supertest abre y cierra puertos efímeros con cada petición esperada con `await`; no usa localhost:8080 ni `--exit`. No se limpian colecciones reales y las precondiciones pertenecen al propio caso.
+
+Las pruebas funcionales cubren éxito y errores documentados de Users, Orders, Deliveries, Mocks, Logger y Health. Incluyen alta de pedidos, tipos estrictos, cálculo del total, referencias de cliente, paginación, filtros, errores de parser, fallos de persistencia, guard transaccional y correlación. Un chequeo final contrasta las respuestas ejercitadas con la matriz de estados HTTP de OpenAPI. Los fallos se inyectan en los límites de persistencia, no en rutas artificiales.
+
+La suite ordinaria no demuestra escrituras ni atomicidad de MongoDB real; esa comprobación se ejecuta por separado.
 
 ### Integración con MongoDB
 

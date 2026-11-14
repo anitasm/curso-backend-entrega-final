@@ -6,6 +6,7 @@ const messages = Object.freeze({
   'http.error': 'Error HTTP',
   'logger.test': 'Evento de diagnóstico simulado',
   'mocks.started': 'Generación persistente de mocks iniciada',
+  'order.created': 'Pedido creado',
   'mocks.committed': 'Lote de mocks confirmado',
   'database.connected': 'Conexión a MongoDB establecida',
   'server.started': 'ShipNow / Rina escuchando',

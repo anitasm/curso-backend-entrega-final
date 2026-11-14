@@ -70,8 +70,8 @@ async function setup(t, options = {}) {
   const orderId = '000000000000000000000002', deliveryId = '000000000000000000000003';
   const order = { ...require('../src/mocks/orders.generator')(1, { customerIds: [id] })[0], _id: orderId, id: orderId, ...times };
   const delivery = { ...require('../src/mocks/deliveries.generator')(1, { orderIds: [orderId] })[0], _id: deliveryId, id: deliveryId, ...times };
-  const repository = row => ({ get: async value => value === row.id ? row : null, list: async ({ page }) => ({ docs: [row], page, totalPages: 1, hasPrevPage: false, hasNextPage: false, prevPage: null, nextPage: null }) });
-  const app = createApp({ ...f, mocksService: mocks.service, ordersService: new OrdersService(repository(order)), deliveriesService: new DeliveriesService(repository(delivery)), nodeEnv: options.nodeEnv || 'test' });
+  const repository = row => ({ get: async value => value === row.id ? row : null, create: async data => ({ ...data, _id: '000000000000000000000004', id: '000000000000000000000004', ...times }), list: async ({ page }) => ({ docs: [row], page, totalPages: 1, hasPrevPage: false, hasNextPage: false, prevPage: null, nextPage: null }) });
+  const app = createApp({ ...f, mocksService: mocks.service, ordersService: new OrdersService(repository(order), f.usersRepository), deliveriesService: new DeliveriesService(repository(delivery)), nodeEnv: options.nodeEnv || 'test' });
   const server = http.createServer(app);
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(() => new Promise(resolve => server.close(resolve)));
@@ -91,7 +91,7 @@ test('OpenAPI: validación completa, refs internas, inventario exacto y ejemplos
   assert.equal(spec.servers[0].url, '/'); assert.equal(spec.components.securitySchemes, undefined);
   const expected = {
     '/api/users': ['get', 'post'], '/api/users/{uid}': ['get', 'put', 'delete'],
-    '/api/orders': ['get'], '/api/orders/{oid}': ['get'], '/api/deliveries': ['get'], '/api/deliveries/{did}': ['get'],
+    '/api/orders': ['get', 'post'], '/api/orders/{oid}': ['get'], '/api/deliveries': ['get'], '/api/deliveries/{did}': ['get'],
     '/api/mocks/users': ['get', 'post'], '/api/mocks/mockingusers': ['get'], '/api/mocks/mockingdrivers': ['get'],
     '/api/mocks/mockingorders': ['get'], '/api/mocks/mockingdeliveries': ['get'], '/api/mocks/seed': ['post'], '/api/mocks/generateData': ['post'],
     '/loggerTest': ['get'], '/api/health': ['get'],
@@ -120,17 +120,20 @@ test('OpenAPI: validación completa, refs internas, inventario exacto y ejemplos
       }
     }
   }
-  assert.equal(ids.length, 19); assert.equal(new Set(ids).size, 19);
+  assert.equal(ids.length, 20); assert.equal(new Set(ids).size, 20);
   const walk = node => { if (!node || typeof node !== 'object') return; if (node.$ref) assert.ok(node.$ref.startsWith('#/components/')); Object.values(node).forEach(walk); };
   walk(spec);
 });
 
-test('OpenAPI: las 19 operaciones responden con los contratos documentados', async t => {
+test('OpenAPI: las 20 operaciones responden con los contratos documentados', async t => {
   const api = await setup(t);
   const input = { firstName: 'Alex', lastName: 'Ejemplo', email: 'alex@example.test' };
   const created = await api.request('/api/users', 'POST', input);
   checkResponse('/api/users', 'post', created); assert.equal(created.status, 201);
   const uid = created.body.payload.id;
+  const orderResponse = await api.request('/api/orders', 'POST', { customer: uid, items: [{ name: 'Aro ficticio', quantity: 2, price: 125.5 }], deliveryAddress: 'Calle Ficticia 100' });
+  checkResponse('/api/orders', 'post', orderResponse); assert.equal(orderResponse.status, 201);
+  assert.equal(orderResponse.body.payload.total, 251); assert.equal(orderResponse.body.payload.status, 'created');
   for (const [route, method, data, documented] of [
     ['/api/users', 'GET'], ['/api/users/' + uid, 'GET', undefined, '/api/users/{uid}'],
     ['/api/users/' + uid, 'PUT', { firstName: 'Luz' }, '/api/users/{uid}'],

@@ -44,23 +44,24 @@ async function startServer({ loggerFactory = createLogger } = {}) {
     const deliveriesRepository = new DeliveriesRepository();
     const deliveriesService = new DeliveriesService(deliveriesRepository);
     const ordersRepository = new OrdersRepository();
-    const ordersService = new OrdersService(ordersRepository);
+    const usersRepository = new UsersRepository();
+    const ordersService = new OrdersService(ordersRepository, usersRepository);
     const productsService = new ProductsService(new ProductsRepository());
-    const usersService = new UsersService(new UsersRepository());
+    const usersService = new UsersService(usersRepository);
     const cartsService = new CartsService(new CartsRepository(), productsService);
     stage = 'server.database_failed';
     connectionAttempted = true;
     await connectDB(config.mongoUri);
     logEvent('info', 'database.connected', { nodeEnv: config.nodeEnv }, logger);
     stage = 'server.prepare_failed';
-    await Promise.all([new ProductsRepository().initialize(), new UsersRepository().initialize()]);
+    await Promise.all([new ProductsRepository().initialize(), usersRepository.initialize()]);
     let mocksService;
     if (['development', 'test'].includes(config.nodeEnv)) {
       const MocksService = require('./services/mocks.service');
       const createMockPersistence = require('./repositories/mock-transaction');
       await Promise.all([ordersRepository.initialize(), deliveriesRepository.initialize()]);
       mocksService = new MocksService({
-        usersRepository: new UsersRepository(), ordersRepository, deliveriesRepository,
+        usersRepository, ordersRepository, deliveriesRepository,
         ...createMockPersistence(), logger,
       });
     }

@@ -4,6 +4,7 @@ module.exports = service => {
   const router = Router();
   const c = controller(service);
   router.get('/', c.list);
+  router.post('/', c.create);
   router.get('/:oid', c.get);
   return router;
 };
