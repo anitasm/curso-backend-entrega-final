@@ -1,0 +1,280 @@
+paths:
+  /api/mocks/users:
+    get:
+      tags:
+        - "Mocks"
+      operationId: "previewLocalizedUsers"
+      summary: "Vista previa: users"
+      description: "Disponible solo en development/test; en production devuelve 404 ROUTE_NOT_FOUND. Genera en memoria; no consulta ni escribe en MongoDB. Solo acepta qty. Sin _id, id ni timestamps; las referencias son simuladas."
+      parameters:
+        - $ref: "#/components/parameters/Qty"
+      responses:
+        "200":
+          description: "Operación completada"
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                type: "array"
+                items:
+                  $ref: "#/components/schemas/LocalizedUser"
+              example:
+                - nombre: "Alex Ejemplo"
+                  email: "alex@example.test"
+                  rol: "cliente"
+        "400":
+          $ref: "#/components/responses/MockQueryError"
+        "404":
+          $ref: "#/components/responses/ROUTE_NOT_FOUND"
+    post:
+      tags:
+        - "Mocks"
+      operationId: "seedMockUsers"
+      summary: "Persistir perfiles ficticios"
+      description: "Disponible solo en development/test; en production devuelve 404 ROUTE_NOT_FOUND. Solo escribe en la base activa shipnow_mock_dev; el 403 es un guard de base, no autenticación. Requiere Atlas o replica set con transacciones. Cada 201 agrega un lote nuevo; los fallos revierten el lote completo. Solo acepta query qty, con 10 por defecto. No requiere body."
+      parameters:
+        - $ref: "#/components/parameters/Qty"
+      responses:
+        "201":
+          description: "Operación completada"
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SeedUsersResult"
+              example:
+                status: "success"
+                payload:
+                  inserted: 1
+                  users:
+                    - firstName: "Alex"
+                      lastName: "Ejemplo"
+                      email: "alex@example.test"
+                      role: "user"
+                      _id: "000000000000000000000001"
+                      id: "000000000000000000000001"
+                      createdAt: "2026-01-01T12:00:00.000Z"
+                      updatedAt: "2026-01-01T12:00:00.000Z"
+                  collection: "users"
+        "400":
+          $ref: "#/components/responses/MockWriteQueryError"
+        "403":
+          $ref: "#/components/responses/MOCK_DATABASE_FORBIDDEN"
+        "404":
+          $ref: "#/components/responses/ROUTE_NOT_FOUND"
+        "409":
+          $ref: "#/components/responses/MockConflict"
+        "413":
+          $ref: "#/components/responses/PAYLOAD_TOO_LARGE"
+        "500":
+          $ref: "#/components/responses/MOCK_GENERATION_ERROR"
+        "503":
+          $ref: "#/components/responses/MOCK_TRANSACTIONS_REQUIRED"
+  /api/mocks/mockingusers:
+    get:
+      tags:
+        - "Mocks"
+      operationId: "previewUsers"
+      summary: "Vista previa: mockingusers"
+      description: "Disponible solo en development/test; en production devuelve 404 ROUTE_NOT_FOUND. Genera en memoria; no consulta ni escribe en MongoDB. Solo acepta qty. Sin _id, id ni timestamps; las referencias son simuladas."
+      parameters:
+        - $ref: "#/components/parameters/Qty"
+      responses:
+        "200":
+          description: "Operación completada"
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MockUserList"
+              example:
+                status: "success"
+                payload:
+                  - firstName: "Alex"
+                    lastName: "Ejemplo"
+                    email: "alex@example.test"
+                    role: "user"
+        "400":
+          $ref: "#/components/responses/MockQueryError"
+        "404":
+          $ref: "#/components/responses/ROUTE_NOT_FOUND"
+  /api/mocks/mockingdrivers:
+    get:
+      tags:
+        - "Mocks"
+      operationId: "previewDrivers"
+      summary: "Vista previa: mockingdrivers"
+      description: "Disponible solo en development/test; en production devuelve 404 ROUTE_NOT_FOUND. Genera en memoria; no consulta ni escribe en MongoDB. Solo acepta qty. Sin _id, id ni timestamps; las referencias son simuladas."
+      parameters:
+        - $ref: "#/components/parameters/Qty"
+      responses:
+        "200":
+          description: "Operación completada"
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MockDriverList"
+              example:
+                status: "success"
+                payload:
+                  - firstName: "Alex"
+                    lastName: "Ejemplo"
+                    email: "alex@example.test"
+                    role: "driver"
+        "400":
+          $ref: "#/components/responses/MockQueryError"
+        "404":
+          $ref: "#/components/responses/ROUTE_NOT_FOUND"
+  /api/mocks/mockingorders:
+    get:
+      tags:
+        - "Mocks"
+      operationId: "previewOrders"
+      summary: "Vista previa: mockingorders"
+      description: "Disponible solo en development/test; en production devuelve 404 ROUTE_NOT_FOUND. Genera en memoria; no consulta ni escribe en MongoDB. Solo acepta qty. Sin _id, id ni timestamps; las referencias son simuladas."
+      parameters:
+        - $ref: "#/components/parameters/Qty"
+      responses:
+        "200":
+          description: "Operación completada"
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MockOrderList"
+              example:
+                status: "success"
+                payload:
+                  - customer: "000000000000000000000001"
+                    items:
+                      - name: "Aro de prueba"
+                        quantity: 1
+                        price: 100
+                    deliveryAddress: "Calle Ficticia 100, Ciudad de Prueba"
+                    total: 100
+                    status: "created"
+                    priority: "normal"
+        "400":
+          $ref: "#/components/responses/MockQueryError"
+        "404":
+          $ref: "#/components/responses/ROUTE_NOT_FOUND"
+  /api/mocks/mockingdeliveries:
+    get:
+      tags:
+        - "Mocks"
+      operationId: "previewDeliveries"
+      summary: "Vista previa: mockingdeliveries"
+      description: "Disponible solo en development/test; en production devuelve 404 ROUTE_NOT_FOUND. Genera en memoria; no consulta ni escribe en MongoDB. Solo acepta qty. Sin _id, id ni timestamps; las referencias son simuladas."
+      parameters:
+        - $ref: "#/components/parameters/Qty"
+      responses:
+        "200":
+          description: "Operación completada"
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MockDeliveryList"
+              example:
+                status: "success"
+                payload:
+                  - order: "000000000000000000000002"
+                    status: "pending"
+        "400":
+          $ref: "#/components/responses/MockQueryError"
+        "404":
+          $ref: "#/components/responses/ROUTE_NOT_FOUND"
+  /api/mocks/seed:
+    post:
+      tags:
+        - "Mocks"
+      operationId: "seedMocks"
+      summary: "Persistir perfiles con respuesta resumida"
+      description: "Disponible solo en development/test; en production devuelve 404 ROUTE_NOT_FOUND. Solo escribe en la base activa shipnow_mock_dev; el 403 es un guard de base, no autenticación. Requiere Atlas o replica set con transacciones. Cada 201 agrega un lote nuevo; los fallos revierten el lote completo. qty es obligatorio y el único parámetro aceptado. usuarios es la etiqueta de respuesta; la colección real es users. No requiere body."
+      parameters:
+        - $ref: "#/components/parameters/SeedQty"
+      responses:
+        "201":
+          description: "Operación completada"
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SeedResult"
+              example:
+                insertados: 1
+                coleccion: "usuarios"
+        "400":
+          $ref: "#/components/responses/MockWriteQueryError"
+        "403":
+          $ref: "#/components/responses/MOCK_DATABASE_FORBIDDEN"
+        "404":
+          $ref: "#/components/responses/ROUTE_NOT_FOUND"
+        "409":
+          $ref: "#/components/responses/MockConflict"
+        "413":
+          $ref: "#/components/responses/PAYLOAD_TOO_LARGE"
+        "500":
+          $ref: "#/components/responses/MOCK_GENERATION_ERROR"
+        "503":
+          $ref: "#/components/responses/MOCK_TRANSACTIONS_REQUIRED"
+  /api/mocks/generateData:
+    post:
+      tags:
+        - "Mocks"
+      operationId: "generateMockData"
+      summary: "Persistir lote relacionado"
+      description: "Disponible solo en development/test; en production devuelve 404 ROUTE_NOT_FOUND. Solo escribe en la base activa shipnow_mock_dev; el 403 es un guard de base, no autenticación. Requiere Atlas o replica set con transacciones. Cada 201 agrega un lote nuevo; los fallos revierten el lote completo. Requiere application/json y no acepta parámetros query. Solo users, drivers, orders y deliveries: enteros 0..100, omitidos equivalen a cero; suma 1..100. orders > 0 requiere users > 0; deliveries <= orders. Sin drivers: entrega pending y pedido created; con drivers: ambos assigned para los pedidos con entrega."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BatchInput"
+      responses:
+        "201":
+          description: "Operación completada"
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BatchResult"
+              example:
+                status: "success"
+                payload:
+                  insertados:
+                    users: 1
+                    drivers: 1
+                    orders: 1
+                    deliveries: 1
+        "400":
+          $ref: "#/components/responses/MockInputError"
+        "403":
+          $ref: "#/components/responses/MOCK_DATABASE_FORBIDDEN"
+        "404":
+          $ref: "#/components/responses/ROUTE_NOT_FOUND"
+        "409":
+          $ref: "#/components/responses/MockConflict"
+        "413":
+          $ref: "#/components/responses/PAYLOAD_TOO_LARGE"
+        "500":
+          $ref: "#/components/responses/MOCK_GENERATION_ERROR"
+        "503":
+          $ref: "#/components/responses/MOCK_TRANSACTIONS_REQUIRED"

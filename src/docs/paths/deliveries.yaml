@@ -1,0 +1,76 @@
+paths:
+  /api/deliveries:
+    get:
+      tags:
+        - "Deliveries"
+      operationId: "listDeliveries"
+      summary: "Listar entregas persistidas"
+      description: "Solo page, limit y status. Orden estable por createdAt descendente y _id ascendente. Referencias por ID, sin popular perfiles privados. No escribe ni exige la base de mocks."
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/DeliveryStatus"
+      responses:
+        "200":
+          description: "Operación completada"
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeliveryPage"
+              example:
+                status: "success"
+                payload:
+                  - order: "000000000000000000000002"
+                    status: "pending"
+                    _id: "000000000000000000000003"
+                    id: "000000000000000000000003"
+                    createdAt: "2026-01-01T12:00:00.000Z"
+                    updatedAt: "2026-01-01T12:00:00.000Z"
+                totalPages: 1
+                page: 1
+                hasPrevPage: false
+                hasNextPage: false
+                prevPage: null
+                nextPage: null
+                prevLink: null
+                nextLink: null
+        "400":
+          $ref: "#/components/responses/DeliveryFilterError"
+        "500":
+          $ref: "#/components/responses/DATABASE_ERROR"
+  /api/deliveries/{did}:
+    get:
+      tags:
+        - "Deliveries"
+      operationId: "getDelivery"
+      summary: "Consultar entrega persistida"
+      parameters:
+        - $ref: "#/components/parameters/DeliveryId"
+      responses:
+        "200":
+          description: "Operación completada"
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeliveryResult"
+              example:
+                status: "success"
+                payload:
+                  order: "000000000000000000000002"
+                  status: "pending"
+                  _id: "000000000000000000000003"
+                  id: "000000000000000000000003"
+                  createdAt: "2026-01-01T12:00:00.000Z"
+                  updatedAt: "2026-01-01T12:00:00.000Z"
+        "400":
+          $ref: "#/components/responses/InvalidId"
+        "404":
+          $ref: "#/components/responses/DELIVERY_NOT_FOUND"
+        "500":
+          $ref: "#/components/responses/DATABASE_ERROR"

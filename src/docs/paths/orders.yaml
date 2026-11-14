@@ -1,0 +1,90 @@
+paths:
+  /api/orders:
+    get:
+      tags:
+        - "Orders"
+      operationId: "listOrders"
+      summary: "Listar pedidos persistidos"
+      description: "Solo page, limit y status. Orden estable por createdAt descendente y _id ascendente. Referencias por ID, sin popular perfiles privados. No escribe ni exige la base de mocks."
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/OrderStatus"
+      responses:
+        "200":
+          description: "Operación completada"
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderPage"
+              example:
+                status: "success"
+                payload:
+                  - customer: "000000000000000000000001"
+                    items:
+                      - name: "Aro de prueba"
+                        quantity: 1
+                        price: 100
+                    deliveryAddress: "Calle Ficticia 100, Ciudad de Prueba"
+                    total: 100
+                    status: "created"
+                    priority: "normal"
+                    _id: "000000000000000000000002"
+                    id: "000000000000000000000002"
+                    createdAt: "2026-01-01T12:00:00.000Z"
+                    updatedAt: "2026-01-01T12:00:00.000Z"
+                totalPages: 1
+                page: 1
+                hasPrevPage: false
+                hasNextPage: false
+                prevPage: null
+                nextPage: null
+                prevLink: null
+                nextLink: null
+        "400":
+          $ref: "#/components/responses/OrderFilterError"
+        "500":
+          $ref: "#/components/responses/DATABASE_ERROR"
+  /api/orders/{oid}:
+    get:
+      tags:
+        - "Orders"
+      operationId: "getOrder"
+      summary: "Consultar pedido persistido"
+      parameters:
+        - $ref: "#/components/parameters/OrderId"
+      responses:
+        "200":
+          description: "Operación completada"
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderResult"
+              example:
+                status: "success"
+                payload:
+                  customer: "000000000000000000000001"
+                  items:
+                    - name: "Aro de prueba"
+                      quantity: 1
+                      price: 100
+                  deliveryAddress: "Calle Ficticia 100, Ciudad de Prueba"
+                  total: 100
+                  status: "created"
+                  priority: "normal"
+                  _id: "000000000000000000000002"
+                  id: "000000000000000000000002"
+                  createdAt: "2026-01-01T12:00:00.000Z"
+                  updatedAt: "2026-01-01T12:00:00.000Z"
+        "400":
+          $ref: "#/components/responses/InvalidId"
+        "404":
+          $ref: "#/components/responses/ORDER_NOT_FOUND"
+        "500":
+          $ref: "#/components/responses/DATABASE_ERROR"

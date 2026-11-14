@@ -39,6 +39,10 @@ async function startServer({ loggerFactory = createLogger } = {}) {
     const CartsService = require('./services/carts.service');
     const OrdersRepository = require('./repositories/orders.repository');
     const OrdersService = require('./services/orders.service');
+    const DeliveriesRepository = require('./repositories/deliveries.repository');
+    const DeliveriesService = require('./services/deliveries.service');
+    const deliveriesRepository = new DeliveriesRepository();
+    const deliveriesService = new DeliveriesService(deliveriesRepository);
     const ordersRepository = new OrdersRepository();
     const ordersService = new OrdersService(ordersRepository);
     const productsService = new ProductsService(new ProductsRepository());
@@ -52,17 +56,15 @@ async function startServer({ loggerFactory = createLogger } = {}) {
     await Promise.all([new ProductsRepository().initialize(), new UsersRepository().initialize()]);
     let mocksService;
     if (['development', 'test'].includes(config.nodeEnv)) {
-      const DeliveriesRepository = require('./repositories/deliveries.repository');
       const MocksService = require('./services/mocks.service');
       const createMockPersistence = require('./repositories/mock-transaction');
-      const deliveriesRepository = new DeliveriesRepository();
       await Promise.all([ordersRepository.initialize(), deliveriesRepository.initialize()]);
       mocksService = new MocksService({
         usersRepository: new UsersRepository(), ordersRepository, deliveriesRepository,
         ...createMockPersistence(), logger,
       });
     }
-    const app = createApp({ productsService, usersService, cartsService, mocksService, ordersService, nodeEnv: config.nodeEnv, logger });
+    const app = createApp({ productsService, usersService, cartsService, mocksService, ordersService, deliveriesService, nodeEnv: config.nodeEnv, logger });
     server = http.createServer(app);
     io = new Server(server);
     app.set('io', io);

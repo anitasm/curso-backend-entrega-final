@@ -1,0 +1,200 @@
+paths:
+  /api/users:
+    get:
+      tags:
+        - "Users"
+      operationId: "listUsers"
+      summary: "Listar perfiles"
+      description: "Solo page y limit; se rechazan campos desconocidos. Orden por _id ascendente."
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: "Operación completada"
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPage"
+              example:
+                status: "success"
+                payload:
+                  - firstName: "Alex"
+                    lastName: "Ejemplo"
+                    email: "alex@example.test"
+                    role: "user"
+                    _id: "000000000000000000000001"
+                    id: "000000000000000000000001"
+                    createdAt: "2026-01-01T12:00:00.000Z"
+                    updatedAt: "2026-01-01T12:00:00.000Z"
+                totalPages: 1
+                page: 1
+                hasPrevPage: false
+                hasNextPage: false
+                prevPage: null
+                nextPage: null
+                prevLink: null
+                nextLink: null
+        "400":
+          $ref: "#/components/responses/PaginationError"
+        "500":
+          $ref: "#/components/responses/DATABASE_ERROR"
+    post:
+      tags:
+        - "Users"
+      operationId: "createUser"
+      summary: "Crear perfil"
+      description: "Asigna role=user. No acepta role, password, IDs ni otros campos extra. Los textos se recortan y email se normaliza a minúsculas."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserCreate"
+      responses:
+        "201":
+          description: "Operación completada"
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResult"
+              example:
+                status: "success"
+                payload:
+                  firstName: "Alex"
+                  lastName: "Ejemplo"
+                  email: "alex@example.test"
+                  role: "user"
+                  _id: "000000000000000000000001"
+                  id: "000000000000000000000001"
+                  createdAt: "2026-01-01T12:00:00.000Z"
+                  updatedAt: "2026-01-01T12:00:00.000Z"
+        "400":
+          $ref: "#/components/responses/UserInputError"
+        "409":
+          $ref: "#/components/responses/USER_ALREADY_EXISTS"
+        "413":
+          $ref: "#/components/responses/PAYLOAD_TOO_LARGE"
+        "500":
+          $ref: "#/components/responses/DATABASE_ERROR"
+  /api/users/{uid}:
+    get:
+      tags:
+        - "Users"
+      operationId: "getUser"
+      summary: "Consultar perfil"
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "200":
+          description: "Operación completada"
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResult"
+              example:
+                status: "success"
+                payload:
+                  firstName: "Alex"
+                  lastName: "Ejemplo"
+                  email: "alex@example.test"
+                  role: "user"
+                  _id: "000000000000000000000001"
+                  id: "000000000000000000000001"
+                  createdAt: "2026-01-01T12:00:00.000Z"
+                  updatedAt: "2026-01-01T12:00:00.000Z"
+        "400":
+          $ref: "#/components/responses/InvalidId"
+        "404":
+          $ref: "#/components/responses/USER_NOT_FOUND"
+        "500":
+          $ref: "#/components/responses/DATABASE_ERROR"
+    put:
+      tags:
+        - "Users"
+      operationId: "updateUser"
+      summary: "Actualizar campos de perfil"
+      description: "Subconjunto no vacío de firstName, lastName y email. No permite modificar role ni IDs."
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserUpdate"
+      responses:
+        "200":
+          description: "Operación completada"
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResult"
+              example:
+                status: "success"
+                payload:
+                  firstName: "Luz"
+                  lastName: "Ejemplo"
+                  email: "alex@example.test"
+                  role: "user"
+                  _id: "000000000000000000000001"
+                  id: "000000000000000000000001"
+                  createdAt: "2026-01-01T12:00:00.000Z"
+                  updatedAt: "2026-01-01T12:00:00.000Z"
+        "400":
+          $ref: "#/components/responses/UserUpdateError"
+        "404":
+          $ref: "#/components/responses/USER_NOT_FOUND"
+        "409":
+          $ref: "#/components/responses/USER_ALREADY_EXISTS"
+        "413":
+          $ref: "#/components/responses/PAYLOAD_TOO_LARGE"
+        "500":
+          $ref: "#/components/responses/DATABASE_ERROR"
+    delete:
+      tags:
+        - "Users"
+      operationId: "deleteUser"
+      summary: "Eliminar perfil"
+      description: "Devuelve 200 con el perfil eliminado en payload."
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "200":
+          description: "Operación completada"
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResult"
+              example:
+                status: "success"
+                payload:
+                  firstName: "Alex"
+                  lastName: "Ejemplo"
+                  email: "alex@example.test"
+                  role: "user"
+                  _id: "000000000000000000000001"
+                  id: "000000000000000000000001"
+                  createdAt: "2026-01-01T12:00:00.000Z"
+                  updatedAt: "2026-01-01T12:00:00.000Z"
+        "400":
+          $ref: "#/components/responses/InvalidId"
+        "404":
+          $ref: "#/components/responses/USER_NOT_FOUND"
+        "500":
+          $ref: "#/components/responses/DATABASE_ERROR"

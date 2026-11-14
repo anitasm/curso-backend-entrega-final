@@ -4,7 +4,7 @@ const httpLogger = require('./middlewares/http-logger');
 const { engine } = require('express-handlebars');
 const errors = require('./middlewares/errors');
 const AppError = require('./errors/AppError');
-function createApp({ productsService, usersService, cartsService, mocksService, ordersService, nodeEnv, upload, io, logger } = {}) {
+function createApp({ productsService, usersService, cartsService, mocksService, ordersService, deliveriesService, nodeEnv, upload, io, logger } = {}) {
   const app = express();
   app.engine('handlebars', engine());
   app.set('view engine', 'handlebars');
@@ -16,6 +16,8 @@ function createApp({ productsService, usersService, cartsService, mocksService, 
   if (io) app.set('io', io);
   if (ordersService) app.use('/api/orders', require('./routes/orders.router')(ordersService));
   if (['development', 'test'].includes(nodeEnv)) app.use('/loggerTest', require('./routes/logger.router')());
+  if (deliveriesService) app.use('/api/deliveries', require('./routes/deliveries.router')(deliveriesService));
+  app.use('/api/docs', require('./docs/router')());
   app.use('/api/health', require('./routes/health.router'));
   app.use('/api/products', require('./routes/products.router')(productsService, upload));
   app.use('/api/users', require('./routes/users.router')(usersService));

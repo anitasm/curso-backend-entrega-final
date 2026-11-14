@@ -1,5 +1,7 @@
 const { MOCK_DATABASE_NAME } = require('../config/mocks.config');
 const definitions = {
+  "INVALID_DELIVERY_STATUS": [400, "Estado de entrega inválido"],
+  "DELIVERY_NOT_FOUND": [404, "Entrega no encontrada"],
   "ROUTE_NOT_FOUND": [
     404,
     "Ruta no encontrada"

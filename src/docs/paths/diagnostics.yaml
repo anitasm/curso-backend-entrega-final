@@ -1,0 +1,43 @@
+paths:
+  /loggerTest:
+    get:
+      tags:
+        - "Logger"
+      operationId: "testLogger"
+      summary: "Emitir seis registros simulados"
+      description: "Disponible solo en development/test; en production devuelve 404 ROUTE_NOT_FOUND. Emite debug, http, info, warning, error y fatal con synthetic=true. El fatal no detiene el servidor. No modifica datos de negocio."
+      responses:
+        "200":
+          description: "Operación completada"
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoggerResult"
+              example:
+                status: "success"
+                message: "Logs de diagnóstico generados"
+        "404":
+          $ref: "#/components/responses/ROUTE_NOT_FOUND"
+  /api/health:
+    get:
+      tags:
+        - "Health"
+      operationId: "getHealth"
+      summary: "Comprobar disponibilidad HTTP"
+      description: "Liveness independiente de MongoDB. Punto seguro para probar Try it out."
+      responses:
+        "200":
+          description: "Operación completada"
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResult"
+              example:
+                status: "ok"
+                timestamp: "2026-01-01T12:00:00.000Z"

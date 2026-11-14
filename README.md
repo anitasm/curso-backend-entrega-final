@@ -1,6 +1,6 @@
 # ShipNow / Rina
 
-Aplicación de catálogo y carritos para accesorios, con Rina como tienda de ejemplo. Incluye perfiles de usuarios, generación de datos ficticios relacionados y consultas de pedidos. No realiza envíos ni pagos reales.
+Aplicación de catálogo y carritos para accesorios, con Rina como tienda de ejemplo. Incluye perfiles de usuarios, generación de datos ficticios relacionados y consultas de pedidos y entregas. No realiza envíos ni pagos reales.
 
 Utiliza CommonJS, Express 4, Mongoose 9, Handlebars, Socket.io, Multer y Winston. Los generadores usan `node:crypto`; las pruebas usan `node:test`.
 
@@ -31,6 +31,8 @@ npm.cmd run dev
 
 El catálogo queda disponible en `http://localhost:8080/products` con el puerto de la plantilla. `npm.cmd start` inicia sin nodemon. Los cambios en `.env` requieren reiniciar el proceso. La base dedicada puede tener el catálogo vacío: los mocks no crean productos.
 
+Swagger UI: [documentación interactiva](http://localhost:8080/api/docs/). Especificación: [OpenAPI JSON](http://localhost:8080/api/docs/openapi.json). Reemplazar `8080` por el `PORT` configurado. Swagger usa el mismo origen y puerto de la aplicación.
+
 ## Arquitectura
 
 ```text
@@ -43,6 +45,7 @@ Router → Controller → Service → Repository → Model / MongoDB
 - `src/server.js`: configuración, conexión, composición de servicios y arranque de HTTP y Socket.io.
 - `src/services`: validaciones de dominio y coordinación de operaciones.
 - `src/repositories`: consultas, proyecciones y traducción de fallos de persistencia.
+- `src/docs`: configuración OpenAPI 3.0.3, componentes reutilizables y fuentes YAML por módulo; Swagger UI carga el JSON servido por la aplicación.
 - `src/mocks`: generación de perfiles, pedidos y entregas ficticios.
 - `src/errors`: clase `AppError` y diccionario de códigos, estados HTTP y mensajes públicos.
 - `src/middlewares/errors.js`: único emisor JSON de errores HTTP.
@@ -69,12 +72,66 @@ Las respuestas de éxito de las API usan `status: "success"` y `payload`, salvo 
 | PUT / DELETE | `/api/carts/:cid/products/:pid` | Cambiar cantidad / quitar producto |
 | GET | `/api/orders/:oid` | Consultar un pedido persistido |
 | GET | `/api/orders` | Listar pedidos, con `status`, `page` y `limit` opcionales |
+| GET | `/api/deliveries` | Listar entregas persistidas, con `status`, `page` y `limit` opcionales |
+| GET | `/api/deliveries/:did` | Consultar una entrega persistida |
 
-Productos, usuarios y pedidos admiten `page` y `limit`: valores predeterminados 1 y 10, máximo 100 por página. Productos admite además `sort=asc|desc` por precio y `query` por categoría o disponibilidad (`true|false`). Pedidos usa orden estable por fecha descendente e identificador ascendente. Rechaza filtros desconocidos; `status` debe ser `created`, `assigned`, `picked_up`, `in_transit`, `delivered` o `cancelled`.
+Productos, usuarios, pedidos y entregas admiten `page` y `limit`: valores predeterminados 1 y 10, máximo 100 por página. Productos admite además `sort=asc|desc` por precio y `query` por categoría o disponibilidad (`true|false`). Pedidos usa orden estable por fecha descendente e identificador ascendente. Rechaza filtros desconocidos; `status` debe ser `created`, `assigned`, `picked_up`, `in_transit`, `delivered` o `cancelled`.
+
+Entregas acepta `status=pending|assigned`, rechaza filtros desconocidos y usa el mismo orden estable que pedidos. Devuelve `order`, `driver` cuando existe, `status`, `createdAt`, `updatedAt`, `_id` e `id`. Las referencias son IDs, sin perfiles populados. Una entrega pendiente puede omitir `driver`. Estas consultas son de lectura y funcionan fuera de la base dedicada a mocks. No se ofrecen operaciones para crear, actualizar o eliminar entregas por esta API.
 
 Los perfiles contienen `firstName`, `lastName`, `email` y `role`, sin contraseña. El alta pública asigna `user` y no permite escribir `role`. Productos acepta una imagen en el campo multipart `image`, hasta 2 MB; una creación fallida limpia el archivo subido. Las notificaciones Socket.io no revierten una escritura ya confirmada.
 
 Vistas: `/` redirige a `/products`; también están disponibles `/products/:pid`, `/realtimeproducts` y `/carts/:cid`. Se conservan sus imágenes y eventos de actualización del catálogo.
+
+## Documentación OpenAPI
+
+La UI y el JSON están disponibles en desarrollo, pruebas y producción. La especificación se construye una vez por proceso con swagger-jsdoc, usando rutas absolutas independientes del directorio de ejecución. No requiere autenticación. Abrir la documentación no modifica datos; **Try it out ejecuta peticiones reales**.
+
+| Tag | Alcance |
+| --- | --- |
+| Users | Listado, alta, detalle, actualización parcial mediante PUT y eliminación |
+| Orders | Listado con filtros y detalle de pedidos persistidos |
+| Deliveries | Listado con filtros y detalle de entregas persistidas |
+| Mocks | Vistas previas y cargas ficticias transaccionales |
+| Logger | Diagnóstico de los seis niveles de logging |
+| Health | Disponibilidad HTTP independiente de MongoDB |
+
+La especificación cubre 19 operaciones y reutiliza schemas, parámetros y respuestas. Productos, carritos, vistas y sockets conservan el alcance descrito en este README. Mocks y Logger se muestran en Swagger, pero sus rutas siguen respondiendo 404 `ROUTE_NOT_FOUND` en producción.
+
+### Recorrido en navegador
+
+1. Con el servidor iniciado, abrir [Swagger UI](http://localhost:8080/api/docs/).
+2. Desplegar **Health → GET /api/health → Try it out → Execute**. Debe responder 200 con `status: "ok"`, `timestamp` y la cabecera `X-Request-Id`.
+3. En **Orders → GET /api/orders**, usar `status=created`, `page=1`, `limit=10`. En **Deliveries → GET /api/deliveries**, usar `status=pending`. Una lista vacía también es una respuesta 200 válida.
+4. Para detalles, copiar un `id` de un listado y usarlo en `oid` o `did`. Los IDs simulados de las vistas previas de mocks no garantizan documentos persistidos.
+5. En desarrollo o pruebas, ejecutar **Logger → GET /loggerTest** y luego Health. El diagnóstico devuelve 200 y el fatal simulado no detiene el servidor.
+
+Para reproducir los errores sin depender de la validación del formulario de Swagger, ejecutar en otra terminal de PowerShell:
+
+```powershell
+$baseUrl = "http://localhost:8080"
+curl.exe -i "$baseUrl/api/orders?status=no-existe"
+curl.exe -i "$baseUrl/api/deliveries?status=no-existe"
+curl.exe -i "$baseUrl/api/mocks/users?qty=-1"
+```
+
+Se esperan 400 con `INVALID_ORDER_STATUS`, `INVALID_DELIVERY_STATUS` e `INVALID_MOCK_AMOUNT`, respectivamente; el último requiere desarrollo o pruebas. El cuerpo conserva `status`, `error` y `message`; el estado HTTP y `X-Request-Id` viajan en la respuesta.
+
+### Carga ficticia desde Swagger
+
+Solo con la conexión activa a `shipnow_mock_dev`, transacciones disponibles y entorno de desarrollo o pruebas: abrir **Mocks → POST /api/mocks/generateData → Try it out**, sin query, y enviar:
+
+```json
+{ "users": 1, "drivers": 1, "orders": 1, "deliveries": 1 }
+```
+
+La respuesta esperada es 201:
+
+```json
+{ "status": "success", "payload": { "insertados": { "users": 1, "drivers": 1, "orders": 1, "deliveries": 1 } } }
+```
+
+Cada ejecución agrega documentos nuevos. En este ejemplo, el pedido y la entrega quedan `assigned`; se pueden consultar con ese filtro. En otra base, el guard responde 403 antes de escribir. No es un error de autenticación. Las reglas completas de cantidades y relaciones están en la sección de mocks.
 
 ## Generación de datos ficticios
 
@@ -130,9 +187,9 @@ El estado HTTP viaja en la respuesta, no en un campo `statusCode` del JSON. Los 
 
 | HTTP | Códigos |
 | --- | --- |
-| 400 | `INVALID_JSON`, `INVALID_ID`, `VALIDATION_ERROR`, `INVALID_ORDER_STATUS`, `INVALID_MOCK_AMOUNT`, `INVALID_MOCK_DATA`, `UPLOAD_ERROR` |
+| 400 | `INVALID_JSON`, `INVALID_ID`, `VALIDATION_ERROR`, `INVALID_ORDER_STATUS`, `INVALID_DELIVERY_STATUS`, `INVALID_MOCK_AMOUNT`, `INVALID_MOCK_DATA`, `UPLOAD_ERROR` |
 | 403 | `MOCK_DATABASE_FORBIDDEN` |
-| 404 | `ROUTE_NOT_FOUND`, `USER_NOT_FOUND`, `PRODUCT_NOT_FOUND`, `CART_NOT_FOUND`, `CART_ITEM_NOT_FOUND`, `ORDER_NOT_FOUND` |
+| 404 | `ROUTE_NOT_FOUND`, `USER_NOT_FOUND`, `PRODUCT_NOT_FOUND`, `CART_NOT_FOUND`, `CART_ITEM_NOT_FOUND`, `ORDER_NOT_FOUND`, `DELIVERY_NOT_FOUND` |
 | 409 | `USER_ALREADY_EXISTS`, `DUPLICATE_CODE`, `DUPLICATE_KEY` |
 | 413 | `PAYLOAD_TOO_LARGE` |
 | 500 | `DATABASE_ERROR`, `MOCK_GENERATION_ERROR`, `INTERNAL_SERVER_ERROR` |
@@ -222,7 +279,7 @@ Las verificaciones se reproducen con los comandos siguientes; sus resultados dep
 npm.cmd test
 ```
 
-La suite usa servidores efímeros y dobles de persistencia, sin conectar a Atlas. Comprueba catálogo, carritos, perfiles, uploads, Socket.io, pedidos, errores HTTP, mensajes seguros, límites y coordinación transaccional. También verifica niveles y rotación de Winston en directorios temporales, fallos de escritura, correlación de peticiones simultáneas, confidencialidad y cierre del servidor ante fallos de arranque. Los fallos de base se simulan con dobles; no es necesario desconectar una base real.
+La suite usa servidores efímeros y dobles de persistencia, sin conectar a Atlas. Comprueba catálogo, carritos, perfiles, uploads, Socket.io, pedidos, entregas, errores HTTP, mensajes seguros, límites y coordinación transaccional. También verifica niveles y rotación de Winston en directorios temporales, fallos de escritura, correlación de peticiones simultáneas, confidencialidad y cierre del servidor ante fallos de arranque. Valida OpenAPI con Swagger Parser y resolución externa deshabilitada, sus referencias internas, las 19 operaciones contra HTTP, los assets y el script de Swagger, y la carga desde otro directorio. Los fallos de base se simulan con dobles; no es necesario desconectar una base real.
 
 ### Integración con MongoDB
 
