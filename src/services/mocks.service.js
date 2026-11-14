@@ -1,38 +1,43 @@
 const { randomBytes } = require('node:crypto');
 const { USER_ROLES, MOCKING_PARAMETERS } = require('../constants');
 const v = require('../utils/validation');
+const { persist } = require('../repositories/persistence');
 const generateUsers = require('../mocks/users.generator');
 const generateOrders = require('../mocks/orders.generator');
 const generateDeliveries = require('../mocks/deliveries.generator');
 
 function quantity(query, required = false) {
-  v.fields(query, ['qty']);
+  v.fields(query, ['qty'], 'INVALID_MOCK_DATA');
   if (query.qty === undefined && !required) return MOCKING_PARAMETERS.DEFAULT;
-  if (typeof query.qty !== 'string' || !/^\d+$/.test(query.qty)) v.invalid(`qty debe ser un entero decimal entre 1 y ${MOCKING_PARAMETERS.MAX}`);
+  if (typeof query.qty !== 'string' || !/^\d+$/.test(query.qty)) v.invalid(`qty debe ser un entero decimal entre 1 y ${MOCKING_PARAMETERS.MAX}`, 'INVALID_MOCK_AMOUNT');
   const value = Number(query.qty);
-  if (!Number.isSafeInteger(value) || value < 1 || value > MOCKING_PARAMETERS.MAX) v.invalid(`qty debe estar entre 1 y ${MOCKING_PARAMETERS.MAX}`);
+  if (!Number.isSafeInteger(value) || value < 1 || value > MOCKING_PARAMETERS.MAX) v.invalid(`qty debe estar entre 1 y ${MOCKING_PARAMETERS.MAX}`, 'INVALID_MOCK_AMOUNT');
   return value;
 }
 
 function batchCounts(input) {
   const keys = ['users', 'drivers', 'orders', 'deliveries'];
-  v.fields(input, keys);
+  v.fields(input, keys, 'INVALID_MOCK_DATA');
   const counts = {};
   for (const key of keys) {
     const value = Object.hasOwn(input, key) ? input[key] : 0;
-    if (!Number.isSafeInteger(value) || value < 0 || value > MOCKING_PARAMETERS.MAX) v.invalid(`${key} debe ser un entero numérico entre 0 y ${MOCKING_PARAMETERS.MAX}`);
+    if (!Number.isSafeInteger(value) || value < 0 || value > MOCKING_PARAMETERS.MAX) v.invalid(`${key} debe ser un entero numérico entre 0 y ${MOCKING_PARAMETERS.MAX}`, 'INVALID_MOCK_AMOUNT');
     counts[key] = value;
   }
   const total = Object.values(counts).reduce((sum, value) => sum + value, 0);
-  if (total < 1 || total > MOCKING_PARAMETERS.MAX) v.invalid(`El lote debe contener entre 1 y ${MOCKING_PARAMETERS.MAX} registros en total`);
-  if (counts.orders && !counts.users) v.invalid('Para generar pedidos se requiere al menos un cliente (users)');
-  if (counts.deliveries > counts.orders) v.invalid('deliveries no puede superar orders');
+  if (total < 1 || total > MOCKING_PARAMETERS.MAX) v.invalid(`El lote debe contener entre 1 y ${MOCKING_PARAMETERS.MAX} registros en total`, 'INVALID_MOCK_AMOUNT');
+  if (counts.orders && !counts.users) v.invalid('Para generar pedidos se requiere al menos un cliente (users)', 'INVALID_MOCK_DATA');
+  if (counts.deliveries > counts.orders) v.invalid('deliveries no puede superar orders', 'INVALID_MOCK_DATA');
   return counts;
 }
 
 class MocksService {
   constructor({ usersRepository, ordersRepository, deliveriesRepository, assertMockDatabase, withTransaction }) {
     Object.assign(this, { usersRepository, ordersRepository, deliveriesRepository, assertMockDatabase, withTransaction });
+  }
+
+  runTransaction(work) {
+    return persist(() => this.withTransaction(work), { entity: 'users', fallback: 'MOCK_GENERATION_ERROR' });
   }
 
   previewUsers(query = {}, role) { return generateUsers(quantity(query), role); }
@@ -50,7 +55,7 @@ class MocksService {
   async seedUsers(query = {}, { requireQuantity = false } = {}) {
     const count = quantity(query, requireQuantity);
     await this.assertMockDatabase();
-    return this.withTransaction(session => this.usersRepository.insertMany(generateUsers(count), session));
+    return this.runTransaction(session => this.usersRepository.insertMany(generateUsers(count), session));
   }
 
   async seed(query = {}) {
@@ -59,10 +64,10 @@ class MocksService {
   }
 
   async generateData(input, query = {}) {
-    v.fields(query, []);
+    v.fields(query, [], 'INVALID_MOCK_DATA');
     const counts = batchCounts(input);
     await this.assertMockDatabase();
-    return this.withTransaction(async session => {
+    return this.runTransaction(async session => {
       // All arrays are local to this attempt: a driver retry rebuilds the full batch.
       const users = counts.users ? await this.usersRepository.insertMany(generateUsers(counts.users, USER_ROLES.USER), session) : [];
       const drivers = counts.drivers ? await this.usersRepository.insertMany(generateUsers(counts.drivers, USER_ROLES.DRIVER), session) : [];

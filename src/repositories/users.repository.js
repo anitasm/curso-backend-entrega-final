@@ -1,5 +1,6 @@
 const User = require('../models/User');
-const { normalize, persist } = require('./persistence');
+const { normalize, persist: execute } = require('./persistence');
+const persist = operation => execute(operation, { entity: 'users' });
 const PUBLIC_FIELDS = 'firstName lastName email role createdAt updatedAt';
 class UsersRepository {
   initialize() { return persist(() => User.init()); }

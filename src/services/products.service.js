@@ -33,7 +33,7 @@ class ProductsService {
     const result = await this.repository.getProducts(options);
     return options.paginate ? { ...result, docs: result.docs.map(availability) } : result.map(availability);
   }
-  async getProductById(id) { return availability(v.found(await this.repository.getProductById(v.id(id)), 'Producto')); }
+  async getProductById(id) { return availability(v.found(await this.repository.getProductById(v.id(id)), 'PRODUCT_NOT_FOUND')); }
   async createProduct(input, uploadedImage) {
     const data = validateProduct(input);
     if (uploadedImage) data.thumbnails.push(uploadedImage);
@@ -43,7 +43,7 @@ class ProductsService {
       catch (error) { if (error.code !== 'DUPLICATE_CODE' || attempt === 4) throw error; }
     }
   }
-  async updateProduct(id, input) { return availability(v.found(await this.repository.updateProduct(v.id(id), validateProduct(input, true)), 'Producto')); }
-  async deleteProduct(id) { return availability(v.found(await this.repository.deleteProduct(v.id(id)), 'Producto')); }
+  async updateProduct(id, input) { return availability(v.found(await this.repository.updateProduct(v.id(id), validateProduct(input, true)), 'PRODUCT_NOT_FOUND')); }
+  async deleteProduct(id) { return availability(v.found(await this.repository.deleteProduct(v.id(id)), 'PRODUCT_NOT_FOUND')); }
 }
 module.exports = ProductsService;

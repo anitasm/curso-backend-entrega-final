@@ -1,0 +1,278 @@
+{
+  "info": {
+    "name": "ShipNow - Errores HTTP",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Errores de dominio y contrato HTTP. Ejecutar en development/test. El caso 403 requiere una base distinta de shipnow_mock_dev; sobre la base dedicada insertaría datos."
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "01 - Errores sin inserciones",
+      "item": [
+        {
+          "name": "Ruta inexistente",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/no-existe"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Código HTTP esperado', () => pm.response.to.have.status(404));",
+                  "pm.test('Contrato de error', () => { const data = pm.response.json(); pm.expect(data).to.have.all.keys('status', 'error', 'message'); pm.expect(data.status).to.eql('error'); pm.expect(data.error).to.eql('ROUTE_NOT_FOUND'); pm.expect(data.message).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "ID inválido",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/users/no-es-id"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Código HTTP esperado', () => pm.response.to.have.status(400));",
+                  "pm.test('Contrato de error', () => { const data = pm.response.json(); pm.expect(data).to.have.all.keys('status', 'error', 'message'); pm.expect(data.status).to.eql('error'); pm.expect(data.error).to.eql('INVALID_ID'); pm.expect(data.message).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Usuario inexistente",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/users/ffffffffffffffffffffffff"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Código HTTP esperado', () => pm.response.to.have.status(404));",
+                  "pm.test('Contrato de error', () => { const data = pm.response.json(); pm.expect(data).to.have.all.keys('status', 'error', 'message'); pm.expect(data.status).to.eql('error'); pm.expect(data.error).to.eql('USER_NOT_FOUND'); pm.expect(data.message).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pedido inexistente",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/orders/ffffffffffffffffffffffff"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Código HTTP esperado', () => pm.response.to.have.status(404));",
+                  "pm.test('Contrato de error', () => { const data = pm.response.json(); pm.expect(data).to.have.all.keys('status', 'error', 'message'); pm.expect(data.status).to.eql('error'); pm.expect(data.error).to.eql('ORDER_NOT_FOUND'); pm.expect(data.message).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Estado de pedido inválido",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/orders?status=no-existe"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Código HTTP esperado', () => pm.response.to.have.status(400));",
+                  "pm.test('Contrato de error', () => { const data = pm.response.json(); pm.expect(data).to.have.all.keys('status', 'error', 'message'); pm.expect(data.status).to.eql('error'); pm.expect(data.error).to.eql('INVALID_ORDER_STATUS'); pm.expect(data.message).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cantidad inválida",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/mocks/users?qty=-1"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Código HTTP esperado', () => pm.response.to.have.status(400));",
+                  "pm.test('Contrato de error', () => { const data = pm.response.json(); pm.expect(data).to.have.all.keys('status', 'error', 'message'); pm.expect(data.status).to.eql('error'); pm.expect(data.error).to.eql('INVALID_MOCK_AMOUNT'); pm.expect(data.message).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "JSON malformado",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/mocks/generateData",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"users\":",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Código HTTP esperado', () => pm.response.to.have.status(400));",
+                  "pm.test('Contrato de error', () => { const data = pm.response.json(); pm.expect(data).to.have.all.keys('status', 'error', 'message'); pm.expect(data.status).to.eql('error'); pm.expect(data.error).to.eql('INVALID_JSON'); pm.expect(data.message).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pedido sin cliente",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/mocks/generateData",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"orders\":1}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Código HTTP esperado', () => pm.response.to.have.status(400));",
+                  "pm.test('Contrato de error', () => { const data = pm.response.json(); pm.expect(data).to.have.all.keys('status', 'error', 'message'); pm.expect(data.status).to.eql('error'); pm.expect(data.error).to.eql('INVALID_MOCK_DATA'); pm.expect(data.message).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Límite del body",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/mocks/generateData",
+            "body": {
+              "mode": "raw",
+              "raw": "{{oversizedBody}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.variables.set('oversizedBody', JSON.stringify({text: 'x'.repeat(110000)}));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Código HTTP esperado', () => pm.response.to.have.status(413));",
+                  "pm.test('Contrato de error', () => { const data = pm.response.json(); pm.expect(data).to.have.all.keys('status', 'error', 'message'); pm.expect(data.status).to.eql('error'); pm.expect(data.error).to.eql('PAYLOAD_TOO_LARGE'); pm.expect(data.message).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 - Solo con base distinta de shipnow_mock_dev",
+      "description": "Ejecutar por separado con base no permitida. No ejecutar sobre shipnow_mock_dev esperando un error.",
+      "item": [
+        {
+          "name": "Base no permitida - revisar conexión antes de enviar",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/mocks/seed?qty=1"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Código HTTP esperado', () => pm.response.to.have.status(403));",
+                  "pm.test('Contrato de error', () => { const data = pm.response.json(); pm.expect(data).to.have.all.keys('status', 'error', 'message'); pm.expect(data.status).to.eql('error'); pm.expect(data.error).to.eql('MOCK_DATABASE_FORBIDDEN'); pm.expect(data.message).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

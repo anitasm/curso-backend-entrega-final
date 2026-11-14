@@ -108,7 +108,7 @@ test('HTTP mocks: falla final no responde éxito y Users conserva sus restriccio
   const f = await setup(t, { failDeliveries: true });
   const failed = await f.request('/api/mocks/generateData', { method: 'POST', body: { users: 1, orders: 1, deliveries: 1 } });
   assert.equal(failed.status, 500);
-  assert.deepEqual(failed.body, { status: 'error', message: 'Error interno del servidor' });
+  assert.deepEqual(failed.body, { status: 'error', error: 'MOCK_GENERATION_ERROR', message: 'No se pudo completar la generación de mocks' });
   assert.equal(f.committed(), false);
   const profile = { firstName: 'Test', lastName: 'Ejemplo', email: 'new@example.test' };
   assert.equal((await f.request('/api/users', { method: 'POST', body: { ...profile, role: USER_ROLES.DRIVER } })).status, 400);

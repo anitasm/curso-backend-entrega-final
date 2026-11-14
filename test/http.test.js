@@ -107,5 +107,5 @@ test('multipart: alta, limpieza tras error, tipo de archivo y máximo 2 MB',asyn
 test('HTTP: errores inesperados no exponen detalles privados',async t=>{
   const {request,usersRepository}=await setup(t);
   usersRepository.list=async()=>{throw new Error('mongodb://secret:password@private');};
-  const result=await request('/api/users');assert.equal(result.status,500);assert.deepEqual(result.body,{status:'error',message:'Error interno del servidor'});
+  const result=await request('/api/users');assert.equal(result.status,500);assert.deepEqual(result.body,{status:'error',error:'INTERNAL_SERVER_ERROR',message:'Error interno del servidor'});
 });

@@ -292,7 +292,8 @@
                 "exec": [
                   "pm.test(\"Código HTTP esperado\", function () { pm.response.to.have.status(400); });",
                   "const data = pm.response.json();",
-                  "pm.test(\"Contrato de respuesta\", function () { pm.expect(data.status).to.eql(\"error\"); });"
+                  "pm.test(\"Contrato de respuesta\", function () { pm.expect(data.status).to.eql(\"error\"); });",
+                  "pm.test('Código de error de dominio', () => { const data = pm.response.json(); pm.expect(data).to.have.all.keys('status', 'error', 'message'); pm.expect(data.error).to.eql('INVALID_MOCK_AMOUNT'); });"
                 ]
               }
             }
@@ -314,7 +315,8 @@
                 "exec": [
                   "pm.test(\"Código HTTP esperado\", function () { pm.response.to.have.status(400); });",
                   "const data = pm.response.json();",
-                  "pm.test(\"Contrato de respuesta\", function () { pm.expect(data.status).to.eql(\"error\"); });"
+                  "pm.test(\"Contrato de respuesta\", function () { pm.expect(data.status).to.eql(\"error\"); });",
+                  "pm.test('Código de error de dominio', () => { const data = pm.response.json(); pm.expect(data).to.have.all.keys('status', 'error', 'message'); pm.expect(data.error).to.eql('INVALID_MOCK_AMOUNT'); });"
                 ]
               }
             }
@@ -350,7 +352,8 @@
                 "exec": [
                   "pm.test(\"Código HTTP esperado\", function () { pm.response.to.have.status(400); });",
                   "const data = pm.response.json();",
-                  "pm.test(\"Contrato de respuesta\", function () { pm.expect(data.status).to.eql(\"error\"); });"
+                  "pm.test(\"Contrato de respuesta\", function () { pm.expect(data.status).to.eql(\"error\"); });",
+                  "pm.test('Código de error de dominio', () => { const data = pm.response.json(); pm.expect(data).to.have.all.keys('status', 'error', 'message'); pm.expect(data.error).to.eql('INVALID_MOCK_DATA'); });"
                 ]
               }
             }

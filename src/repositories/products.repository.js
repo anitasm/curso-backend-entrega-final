@@ -1,5 +1,6 @@
 const Product = require('../models/Product');
-const { normalize, persist } = require('./persistence');
+const { normalize, persist: execute } = require('./persistence');
+const persist = operation => execute(operation, { entity: 'products' });
 const PUBLIC_FIELDS = 'title description code price stock status category thumbnails createdAt updatedAt';
 const escapeRegex = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 class ProductsRepository {

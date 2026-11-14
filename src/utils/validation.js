@@ -1,12 +1,12 @@
 const AppError = require('../errors/AppError');
-const invalid = message => { throw new AppError(400, message); };
+const invalid = (message, code = 'VALIDATION_ERROR') => { throw new AppError(code, { message }); };
 const id = value => {
-  if (typeof value !== 'string' || !/^[a-f\d]{24}$/i.test(value)) invalid('ID inválido');
+  if (typeof value !== 'string' || !/^[a-f\d]{24}$/i.test(value)) invalid(undefined, 'INVALID_ID');
   return value;
 };
-const fields = (input, allowed) => {
-  if (!input || typeof input !== 'object' || Array.isArray(input)) invalid('Se requiere un objeto');
-  for (const key of Object.keys(input)) if (!allowed.includes(key)) invalid('Campo no permitido: ' + key);
+const fields = (input, allowed, code = 'VALIDATION_ERROR') => {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) invalid('Se requiere un objeto', code);
+  for (const key of Object.keys(input)) if (!allowed.includes(key)) invalid('Campo no permitido', code);
 };
 const string = (value, name) => {
   if (typeof value !== 'string' || !value.trim()) invalid(name + ' debe ser texto no vacío');
@@ -24,8 +24,8 @@ const pagination = (input = {}) => {
   if (limit > 100) invalid('limit no puede superar 100');
   return { page, limit };
 };
-const found = (value, name) => {
-  if (!value) throw new AppError(404, name + ' no encontrado');
+const found = (value, code) => {
+  if (!value) throw new AppError(code);
   return value;
 };
 module.exports = { invalid, id, fields, string, number, pagination, found };

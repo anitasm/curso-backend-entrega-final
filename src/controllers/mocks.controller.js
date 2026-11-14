@@ -35,7 +35,7 @@ module.exports = service => ({
   },
   generateData: async (req, res, next) => {
     try {
-      if (!req.is('application/json')) throw new AppError(400, 'generateData requiere un body JSON');
+      if (!req.is('application/json')) throw new AppError('INVALID_MOCK_DATA', { message: 'generateData requiere un body JSON' });
       res.status(201).json({ status: 'success', payload: { insertados: await service.generateData(req.body, req.query) } });
     } catch (error) { next(error); }
   },

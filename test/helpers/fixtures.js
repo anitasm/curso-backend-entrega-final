@@ -25,7 +25,7 @@ function fixtures() {
     getProductById:async id=>products.get(id), createProduct:async data=>create(products,data),
     updateProduct:async (id,data)=>update(products,id,data), deleteProduct:async id=>remove(products,id),
   };
-  const uniqueEmail = (data,id) => { if ([...users.values()].some(row=>row.email===data.email && row.id!==id)) throw new AppError(409,'Email duplicado','DUPLICATE_KEY'); };
+  const uniqueEmail = (data,id) => { if ([...users.values()].some(row=>row.email===data.email && row.id!==id)) throw new AppError('USER_ALREADY_EXISTS'); };
   const usersRepository = {
     list:async options=>paginate([...users.values()],options),get:async id=>users.get(id),
     create:async data=>{uniqueEmail(data);return create(users,data);},

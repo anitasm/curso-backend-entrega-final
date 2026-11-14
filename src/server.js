@@ -15,6 +15,10 @@ async function startServer() {
     const ProductsService = require('./services/products.service');
     const UsersService = require('./services/users.service');
     const CartsService = require('./services/carts.service');
+    const OrdersRepository = require('./repositories/orders.repository');
+    const OrdersService = require('./services/orders.service');
+    const ordersRepository = new OrdersRepository();
+    const ordersService = new OrdersService(ordersRepository);
     const productsService = new ProductsService(new ProductsRepository());
     const usersService = new UsersService(new UsersRepository());
     const cartsService = new CartsService(new CartsRepository(), productsService);
@@ -23,11 +27,9 @@ async function startServer() {
     await Promise.all([new ProductsRepository().initialize(), new UsersRepository().initialize()]);
     let mocksService;
     if (['development', 'test'].includes(config.nodeEnv)) {
-      const OrdersRepository = require('./repositories/orders.repository');
       const DeliveriesRepository = require('./repositories/deliveries.repository');
       const MocksService = require('./services/mocks.service');
       const createMockPersistence = require('./repositories/mock-transaction');
-      const ordersRepository = new OrdersRepository();
       const deliveriesRepository = new DeliveriesRepository();
       // Create collections/indexes before any request can open a transaction.
       await Promise.all([ordersRepository.initialize(), deliveriesRepository.initialize()]);
@@ -36,7 +38,7 @@ async function startServer() {
         ...createMockPersistence(),
       });
     }
-    const app = createApp({ productsService, usersService, cartsService, mocksService, nodeEnv: config.nodeEnv });
+    const app = createApp({ productsService, usersService, cartsService, mocksService, ordersService, nodeEnv: config.nodeEnv });
     server = http.createServer(app);
     const io = new Server(server);
     app.set('io', io);

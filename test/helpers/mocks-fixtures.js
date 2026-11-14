@@ -26,7 +26,7 @@ function mockFixtures({ forbidden = false, failDeliveries = false } = {}) {
     deliveriesRepository: repository('deliveries'),
     assertMockDatabase: () => {
       calls.push('guard');
-      if (forbidden) throw new AppError(403, 'Base no habilitada para mocks');
+      if (forbidden) throw new AppError('MOCK_DATABASE_FORBIDDEN');
     },
     withTransaction: async work => {
       calls.push('begin');

@@ -4,16 +4,16 @@ const normalize = document => {
   const source = typeof document.toObject === 'function' ? document.toObject() : document;
   return { ...source, _id: String(source._id), id: String(source._id) };
 };
-async function persist(operation) {
+async function persist(operation, { entity, fallback = 'DATABASE_ERROR' } = {}) {
   try { return await operation(); }
   catch (error) {
     if (error instanceof AppError) throw error;
     if (error.code === 11000) {
       const field = Object.keys(error.keyPattern || error.keyValue || {})[0];
-      throw new AppError(409, 'Ya existe un registro con ese valor único', field === 'code' ? 'DUPLICATE_CODE' : 'DUPLICATE_KEY');
+      throw new AppError(entity === 'users' && field === 'email' ? 'USER_ALREADY_EXISTS' : entity === 'products' && field === 'code' ? 'DUPLICATE_CODE' : 'DUPLICATE_KEY', { cause: error });
     }
-    if (['ValidationError', 'CastError', 'StrictModeError'].includes(error.name)) throw new AppError(400, 'Datos incompatibles con el esquema');
-    throw new AppError(500, 'No se pudo completar la operación de persistencia');
+    if (['ValidationError', 'CastError', 'StrictModeError'].includes(error.name)) throw new AppError('VALIDATION_ERROR', { cause: error });
+    throw new AppError(fallback, { cause: error });
   }
 }
 module.exports = { normalize, persist };

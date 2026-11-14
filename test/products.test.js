@@ -36,12 +36,12 @@ test('Products: filtros existentes y listado paginado', async () => {
 });
 test('Products: solo reintenta colisiones de código, máximo cinco', async () => {
   let calls = 0;
-  const service = new Service({createProduct: async data => { calls++; if (calls < 3) throw new AppError(409,'duplicado','DUPLICATE_CODE'); return data; }});
+  const service = new Service({createProduct: async data => { calls++; if (calls < 3) throw new AppError('DUPLICATE_CODE'); return data; }});
   await service.createProduct(valid); assert.equal(calls,3);
   calls=0;
-  service.repository.createProduct = async () => { calls++; throw new AppError(500,'fallo'); };
+  service.repository.createProduct = async () => { calls++; throw new AppError('DATABASE_ERROR'); };
   await assert.rejects(service.createProduct(valid)); assert.equal(calls,1);
   calls=0;
-  service.repository.createProduct = async () => { calls++; throw new AppError(409,'duplicado','DUPLICATE_CODE'); };
+  service.repository.createProduct = async () => { calls++; throw new AppError('DUPLICATE_CODE'); };
   await assert.rejects(service.createProduct(valid)); assert.equal(calls,5);
 });

@@ -22,10 +22,10 @@ test('Repository: duplicados concurrentes, validación y fallos internos se trad
   t.mock.method(Product,'create',async()=>{throw {code:11000,keyPattern:{code:1}};});
   await assert.rejects(new Repository().createProduct({}),{status:409,code:'DUPLICATE_CODE'});
   t.mock.method(User,'create',async()=>{throw {code:11000,keyPattern:{email:1}};});
-  await assert.rejects(new UsersRepository().create({}),{status:409,code:'DUPLICATE_KEY'});
+  await assert.rejects(new UsersRepository().create({}),{status:409,code:'USER_ALREADY_EXISTS'});
   for(const name of ['ValidationError','CastError'])await assert.rejects(persist(async()=>{throw {name};}),{status:400});
   await assert.rejects(persist(async()=>{throw new Error('secret');}),{status:500,message:'No se pudo completar la operación de persistencia'});
-  const error=new AppError(404,'Ausente');await assert.rejects(persist(async()=>{throw error;}),value=>value===error);
+  const error=new AppError('USER_NOT_FOUND');await assert.rejects(persist(async()=>{throw error;}),value=>value===error);
 });
 test('Modelos: índices únicos, roles, restricciones numéricas y nombres conservados',async()=>{
   assert.equal(Product.modelName,'Product');assert.equal(Cart.modelName,'Cart');

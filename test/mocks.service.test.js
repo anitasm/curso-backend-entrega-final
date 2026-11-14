@@ -116,7 +116,7 @@ test('Mocks: base no habilitada bloquea ambos POST antes de la transacción', as
 
 test('Mocks: fallo de última escritura se propaga sin conteo ni commit de éxito', async () => {
   const f = mockFixtures({ failDeliveries: true });
-  await assert.rejects(f.service.generateData({ users: 1, orders: 1, deliveries: 1 }), /Fallo simulado/);
+  await assert.rejects(f.service.generateData({ users: 1, orders: 1, deliveries: 1 }), error => error.code === 'MOCK_GENERATION_ERROR' && /Fallo simulado/.test(error.cause.message));
   assert.deepEqual(f.calls, ['guard', 'begin', 'users', 'orders', 'deliveries', 'abort']);
   assert.equal(f.committed(), false);
 });

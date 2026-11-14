@@ -37,7 +37,7 @@ test('Mock de interacción: una escritura con sesión y resultado después del c
 });
 
 test('Stub de rechazo: error original sin éxito ni reintento del servicio', async t => {
-  const failure = new AppError(409, 'Conflicto de prueba');
+  const failure = new AppError('DUPLICATE_KEY');
   const insertMany = t.mock.fn(async () => { throw failure; });
   const transaction = t.mock.fn(work => work({ fixtureSession: true }));
   const service = new MocksService({ usersRepository: { insertMany }, assertMockDatabase: () => {}, withTransaction: transaction });

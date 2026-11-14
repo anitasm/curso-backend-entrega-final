@@ -12,8 +12,10 @@ module.exports = service => ({
     let product;
     try { product = await service.createProduct(req.body, req.file ? '/img/uploads/' + req.file.filename : undefined); }
     catch (error) { await cleanupUpload(req.file); return next(error); }
-    await notifyProducts(req.app.get('io'), service);
-    res.status(201).json({ status: 'success', payload: product });
+    try {
+      await notifyProducts(req.app.get('io'), service);
+      res.status(201).json({ status: 'success', payload: product });
+    } catch (error) { next(error); }
   },
   update: async (req, res, next) => {
     try {
