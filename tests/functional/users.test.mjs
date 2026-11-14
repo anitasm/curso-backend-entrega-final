@@ -52,6 +52,13 @@ describe('Users: API real con repositorios efímeros', () => {
     error(await api.put('/api/users/' + absentId).send({}), '/api/users/{uid}', 'put', 'VALIDATION_ERROR', 'Actualización vacía');
     expect(f.calls).to.deep.equal([]);
   });
+  it('no admite arreglos privados en altas ni actualizaciones', async () => {
+    for (const field of ['documents', 'proofs']) {
+      error(await api.post('/api/users').send({ ...userInput, [field]: [] }), '/api/users', 'post', 'VALIDATION_ERROR', 'Campo no permitido');
+      error(await api.put('/api/users/' + absentId).send({ [field]: [] }), '/api/users/{uid}', 'put', 'VALIDATION_ERROR', 'Campo no permitido');
+    }
+    expect(f.calls).to.deep.equal([]);
+  });
   for (const method of ['get', 'put', 'delete']) {
     it(method + ': distingue ID inválido de perfil ausente', async () => {
       const send = route => method === 'put' ? api[method](route).send({ firstName: 'Luz' }) : api[method](route);

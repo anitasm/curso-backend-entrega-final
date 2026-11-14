@@ -6,6 +6,9 @@ const messages = Object.freeze({
   'http.error': 'Error HTTP',
   'logger.test': 'Evento de diagnóstico simulado',
   'mocks.started': 'Generación persistente de mocks iniciada',
+  'user.document_added': 'Documento de usuario asociado',
+  'delivery.proof_added': 'Comprobante de entrega asociado',
+  'upload.reconciliation_required': 'Asociación de archivo sin confirmar; requiere reconciliación',
   'order.created': 'Pedido creado',
   'mocks.committed': 'Lote de mocks confirmado',
   'database.connected': 'Conexión a MongoDB establecida',
@@ -17,7 +20,7 @@ const messages = Object.freeze({
   'server.port_in_use': 'El puerto configurado está ocupado',
   'server.failed': 'Fallo terminal del servidor HTTP',
   'server.cleanup_failed': 'No se pudo completar el cierre de recursos',
-  'upload.cleanup_failed': 'No se pudo limpiar una imagen de la petición fallida',
+  'upload.cleanup_failed': 'No se pudo limpiar un archivo de la petición',
   'catalog.notify_failed': 'Producto guardado; no se pudo notificar la actualización',
   'catalog.load_failed': 'No se pudo cargar el catálogo para el socket',
 });

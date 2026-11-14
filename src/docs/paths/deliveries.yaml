@@ -74,3 +74,52 @@ paths:
           $ref: "#/components/responses/DELIVERY_NOT_FOUND"
         "500":
           $ref: "#/components/responses/DATABASE_ERROR"
+  /api/deliveries/{did}/proof:
+    post:
+      tags: [Deliveries]
+      operationId: addDeliveryProof
+      summary: Asociar comprobante privado a una entrega
+      description: "Un archivo, máximo 5 MiB inclusivos (5242880 bytes). PDF, JPEG o PNG con MIME y firma compatibles. No admite campos de texto; type se fija en delivery_proof. No cambia el estado de la entrega. Guarda en disco privado y asocia metadatos mediante push atómico. Devuelve solo la nueva asociación. Sin autenticación: usar exclusivamente archivos ficticios. MongoDB y disco no comparten transacción; un resultado ambiguo conserva el archivo para reconciliación."
+      parameters:
+        - $ref: '#/components/parameters/DeliveryId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ProofUpload'
+            encoding:
+              proof:
+                contentType: application/pdf, image/jpeg, image/png
+      responses:
+        '201':
+          description: Archivo guardado y asociación confirmada
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProofUploadResult'
+              example:
+                status: success
+                payload:
+                  deliveryId: '000000000000000000000001'
+                  proof:
+                    originalName: ficticio.pdf
+                    filename: 00000000-0000-4000-8000-000000000001.pdf
+                    path: uploads/proofs/00000000-0000-4000-8000-000000000001.pdf
+                    mimeType: application/pdf
+                    size: 42
+                    type: delivery_proof
+                    uploadedAt: '2026-01-01T12:00:00.000Z'
+        '400':
+          $ref: '#/components/responses/ProofUploadError'
+        '404':
+          $ref: '#/components/responses/DELIVERY_NOT_FOUND'
+        '413':
+          $ref: '#/components/responses/FILE_TOO_LARGE'
+        '415':
+          $ref: '#/components/responses/INVALID_FILE_TYPE'
+        '500':
+          $ref: '#/components/responses/FileStorageError'

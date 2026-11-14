@@ -10,6 +10,11 @@ const count = { type: 'integer', minimum: 0, maximum: 100, default: 0 };
 const userInput = { firstName: text, lastName: text, email: { type: 'string', format: 'email' } };
 const schemas = {
   Id: id,
+  FileMetadata: object({ originalName: { ...text, maxLength: 120 }, filename: { type: 'string', pattern: '^[a-f0-9-]{36}[.](pdf|jpg|png)$' }, path: { type: 'string', pattern: '^uploads/(documents|licenses|proofs)/[a-f0-9-]{36}[.](pdf|jpg|png)$', description: 'Referencia interna privada; no es una URL de descarga.' }, mimeType: { type: 'string', enum: ['application/pdf', 'image/jpeg', 'image/png'] }, size: { type: 'integer', minimum: 1, maximum: 5242880 }, type: { type: 'string', enum: ['user_document', 'driver_license', 'delivery_proof'] }, uploadedAt: date }, undefined, { additionalProperties: false }),
+  DocumentUpload: object({ document: { type: 'string', format: 'binary' }, type: { type: 'string', enum: ['user_document', 'driver_license'] } }, undefined, { additionalProperties: false }),
+  ProofUpload: object({ proof: { type: 'string', format: 'binary' } }, undefined, { additionalProperties: false }),
+  DocumentUploadResult: object({ status: { type: 'string', enum: ['success'] }, payload: object({ userId: ref('Id'), document: ref('FileMetadata') }, undefined, { additionalProperties: false }) }, undefined, { additionalProperties: false }),
+  ProofUploadResult: object({ status: { type: 'string', enum: ['success'] }, payload: object({ deliveryId: ref('Id'), proof: ref('FileMetadata') }, undefined, { additionalProperties: false }) }, undefined, { additionalProperties: false }),
   Success: object({ status: { type: 'string', enum: ['success'] } }),
   ErrorResponse: object({ status: { type: 'string', enum: ['error'] }, error: { type: 'string', enum: Object.keys(dictionary) }, message: { type: 'string' } }, undefined, { additionalProperties: false }),
   Persistence: object({ _id: ref('Id'), id: ref('Id'), createdAt: date, updatedAt: date }),
@@ -55,6 +60,11 @@ function errors(name, codes, exampleMessages = {}) {
   responses[name] = { description: entries.map(e => `${e.code}: ${e.message}`).join('. ') + '. Las validaciones pueden dar mensajes públicos contextuales.', headers: responseHeaders, content: { 'application/json': { schema: ref('ErrorResponse'), examples: Object.fromEntries(entries.map(e => [e.code, { value: { status: 'error', error: e.code, message: exampleMessages[e.code] || e.message } }])) } } };
 }
 errors('PaginationError', ['VALIDATION_ERROR'], { VALIDATION_ERROR: 'limit no puede superar 100' });
+errors('DocumentUploadError', ['INVALID_ID', 'FILE_REQUIRED', 'INVALID_UPLOAD_FIELD', 'INVALID_MULTIPART', 'INVALID_DOCUMENT_TYPE', 'INVALID_JSON']);
+errors('ProofUploadError', ['INVALID_ID', 'FILE_REQUIRED', 'INVALID_UPLOAD_FIELD', 'INVALID_MULTIPART', 'INVALID_JSON']);
+errors('FileStorageError', ['FILE_SAVE_ERROR', 'DATABASE_ERROR', 'INTERNAL_SERVER_ERROR']);
+errors('FILE_TOO_LARGE', ['FILE_TOO_LARGE', 'PAYLOAD_TOO_LARGE']);
+errors('INVALID_FILE_TYPE', ['INVALID_FILE_TYPE']);
 errors('InvalidId', ['INVALID_ID']);
 errors('UserInputError', ['VALIDATION_ERROR', 'INVALID_JSON'], { VALIDATION_ERROR: 'firstName debe ser texto no vacío' });
 errors('UserUpdateError', ['INVALID_ID', 'VALIDATION_ERROR', 'INVALID_JSON'], { VALIDATION_ERROR: 'Actualización vacía' });

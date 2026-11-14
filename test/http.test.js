@@ -109,3 +109,17 @@ test('HTTP: errores inesperados no exponen detalles privados',async t=>{
   usersRepository.list=async()=>{throw new Error('mongodb://secret:password@private');};
   const result=await request('/api/users');assert.equal(result.status,500);assert.deepEqual(result.body,{status:'error',error:'INTERNAL_SERVER_ERROR',message:'Error interno del servidor'});
 });
+
+test('catálogo: las cinco imágenes históricas conservan su URL y bytes', async t => {
+  const { app } = await setup(t);
+  const server = http.createServer(app);
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  const directory = path.resolve(__dirname, '../src/public/img/catalog-legacy');
+  const names = await fs.readdir(directory); assert.equal(names.length, 5);
+  for (const name of names) {
+    const r = await fetch('http://127.0.0.1:' + server.address().port + '/img/uploads/' + name);
+    assert.equal(r.status, 200); assert.match(r.headers.get('content-type'), /^image\/jpeg/);
+    assert.deepEqual(Buffer.from(await r.arrayBuffer()), await fs.readFile(path.join(directory, name)));
+  }
+});

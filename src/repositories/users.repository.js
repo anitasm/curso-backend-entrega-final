@@ -3,6 +3,8 @@ const { normalize, persist: execute } = require('./persistence');
 const persist = operation => execute(operation, { entity: 'users' });
 const PUBLIC_FIELDS = 'firstName lastName email role createdAt updatedAt';
 class UsersRepository {
+  addDocument(id, metadata) { return persist(() => User.findByIdAndUpdate(id, { $push: { documents: metadata } }, { new: true, runValidators: true, upsert: false }).select('_id').lean()); }
+  hasDocument(id, filename) { return persist(async () => Boolean(await User.exists({ _id: id, 'documents.filename': filename }))); }
   initialize() { return persist(() => User.init()); }
   async insertMany(data, session) {
     // Batch writes belong to a transaction; translate errors only after it ends.

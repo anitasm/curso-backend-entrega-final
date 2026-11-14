@@ -1,5 +1,12 @@
 const { MOCK_DATABASE_NAME } = require('../config/mocks.config');
 const definitions = {
+  FILE_REQUIRED: [400, 'Se requiere un archivo'],
+  INVALID_UPLOAD_FIELD: [400, 'Campos o cantidad de archivos no permitidos'],
+  INVALID_MULTIPART: [400, 'Formulario multipart inválido'],
+  INVALID_DOCUMENT_TYPE: [400, 'Tipo de documento inválido o incompatible con el perfil'],
+  FILE_TOO_LARGE: [413, 'El archivo supera el máximo de 5 MiB'],
+  INVALID_FILE_TYPE: [415, 'Formato de archivo no permitido o contenido incompatible'],
+  FILE_SAVE_ERROR: [500, 'No se pudo guardar el archivo'],
   "INVALID_DELIVERY_STATUS": [400, "Estado de entrega inválido"],
   "DELIVERY_NOT_FOUND": [404, "Entrega no encontrada"],
   "ROUTE_NOT_FOUND": [

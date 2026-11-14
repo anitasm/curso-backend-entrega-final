@@ -16,6 +16,8 @@ class DeliveriesRepository {
     });
   }
 
+  addProof(id, metadata) { return persist(() => Delivery.findByIdAndUpdate(id, { $push: { proofs: metadata } }, { new: true, runValidators: true, upsert: false }).select('_id').lean()); }
+  hasProof(id, filename) { return persist(async () => Boolean(await Delivery.exists({ _id: id, 'proofs.filename': filename }))); }
   initialize() { return persist(() => Delivery.init()); }
 
   async insertMany(data, session) {

@@ -16,6 +16,8 @@ function validate(input, partial = false) {
 class UsersService {
   constructor(repository) { this.repository = repository; }
   async list(input = {}) { v.fields(input, ['page', 'limit']); return this.repository.list(v.pagination(input)); }
+  async addDocument(id, metadata) { return v.found(await this.repository.addDocument(v.id(id), metadata), 'USER_NOT_FOUND'); }
+  hasDocument(id, filename) { return this.repository.hasDocument(v.id(id), filename); }
   async get(id) { return v.found(await this.repository.get(v.id(id)), 'USER_NOT_FOUND'); }
   async create(input) { return this.repository.create(validate(input)); }
   async update(id, input) { return v.found(await this.repository.update(v.id(id), validate(input, true)), 'USER_NOT_FOUND'); }

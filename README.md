@@ -1,6 +1,6 @@
 # ShipNow / Rina
 
-Aplicación de catálogo y carritos para accesorios, con Rina como tienda de ejemplo. Incluye perfiles de usuarios, generación de datos ficticios relacionados alta y consultas de pedidos, y consultas de entregas. No realiza envíos ni pagos reales.
+Aplicación de catálogo y carritos para accesorios, con Rina como tienda de ejemplo. Incluye perfiles de usuarios, generación de datos ficticios relacionados, alta y consultas de pedidos, consultas de entregas y asociación de documentos y comprobantes privados. No realiza envíos ni pagos reales.
 
 Utiliza CommonJS, Express 4, Mongoose 9, Handlebars, Socket.io, Multer y Winston. Los generadores usan `node:crypto`; las regresiones usan `node:test` y la suite funcional utiliza Mocha, Chai y Supertest.
 
@@ -66,6 +66,8 @@ Las respuestas de éxito de las API usan `status: "success"` y `payload`, salvo 
 | GET / PUT / DELETE | `/api/products/:pid` | Consultar / actualizar / eliminar producto |
 | GET / POST | `/api/users` | Listar / crear perfiles |
 | GET / PUT / DELETE | `/api/users/:uid` | Consultar / actualizar / eliminar perfil |
+| POST | `/api/users/:uid/documents` | Asociar un documento privado a un perfil |
+| POST | `/api/deliveries/:did/proof` | Asociar un comprobante privado a una entrega |
 | POST | `/api/carts` | Crear carrito |
 | GET / PUT / DELETE | `/api/carts/:cid` | Consultar / reemplazar productos / vaciar carrito |
 | POST | `/api/carts/:cid/product/:pid` | Agregar producto |
@@ -78,7 +80,7 @@ Las respuestas de éxito de las API usan `status: "success"` y `payload`, salvo 
 
 Productos, usuarios, pedidos y entregas admiten `page` y `limit`: valores predeterminados 1 y 10, máximo 100 por página. Productos admite además `sort=asc|desc` por precio y `query` por categoría o disponibilidad (`true|false`). Pedidos usa orden estable por fecha descendente e identificador ascendente. Rechaza filtros desconocidos; `status` debe ser `created`, `assigned`, `picked_up`, `in_transit`, `delivered` o `cancelled`.
 
-Entregas acepta `status=pending|assigned`, rechaza filtros desconocidos y usa el mismo orden estable que pedidos. Devuelve `order`, `driver` cuando existe, `status`, `createdAt`, `updatedAt`, `_id` e `id`. Las referencias son IDs, sin perfiles populados. Una entrega pendiente puede omitir `driver`. Estas consultas son de lectura y funcionan fuera de la base dedicada a mocks. No se ofrecen operaciones para crear, actualizar o eliminar entregas por esta API.
+Entregas acepta `status=pending|assigned`, rechaza filtros desconocidos y usa el mismo orden estable que pedidos. Devuelve `order`, `driver` cuando existe, `status`, `createdAt`, `updatedAt`, `_id` e `id`. Las referencias son IDs, sin perfiles populados. Una entrega pendiente puede omitir `driver`. Estas consultas son de lectura y funcionan fuera de la base dedicada a mocks. No se ofrecen operaciones para crear, cambiar el estado o eliminar entregas por esta API; la carga de comprobantes solo agrega metadatos.
 
 Los perfiles contienen `firstName`, `lastName`, `email` y `role`, sin contraseña. El alta pública asigna `user` y no permite escribir `role`. Productos acepta una imagen en el campo multipart `image`, hasta 2 MB; una creación fallida limpia el archivo subido. Las notificaciones Socket.io no revierten una escritura ya confirmada.
 
@@ -103,20 +105,67 @@ El servidor calcula `total = sum(quantity * price)`, comprueba que sea finito y 
 
 El alta ordinaria escribe en la base configurada de la aplicación, sin exigir `shipnow_mock_dev`. Solo crea el pedido: no crea cliente, producto ni entrega. No hay endpoint de actualización de estado. Tras confirmar la escritura se registra un evento `info` `order.created` correlacionado con `X-Request-Id`, sin direcciones, correos ni IDs del cliente. Para verificar el alta sin modificar la base de trabajo, usar la suite funcional aislada.
 
+## Documentos y comprobantes privados
+
+Cada petición acepta un solo archivo multipart, de **hasta 5 MiB inclusivos (5 242 880 bytes)**. Se valida MIME, tamaño y firma inicial desde disco; este control básico no equivale a un análisis integral del archivo.
+
+| POST | Archivo (File) | Campo de texto | Formatos |
+| --- | --- | --- | --- |
+| /api/users/:uid/documents | document | type=user_document | PDF, JPEG, PNG |
+| /api/users/:uid/documents | document | type=driver_license; requiere perfil driver | PDF |
+| /api/deliveries/:did/proof | proof | Ninguno; type=delivery_proof lo fija el servidor | PDF, JPEG, PNG |
+
+No se admiten campos extra, repetidos, valores anidados ni archivos vacíos. El orden entre type y archivo es indiferente. Se comprueba que el ID sea válido y la entidad exista antes de escribir en disco. Estos endpoints escriben en la base configurada; no exigen la base de mocks.
+
+El éxito devuelve **201**, X-Request-Id y un cuerpo con status=success y payload: {userId, document} o {deliveryId, proof}. Solo incluye los metadatos del archivo recién asociado: originalName saneado (máximo 120 caracteres), filename UUID con extensión canónica, path relativo interno, mimeType verificado, size en bytes, type y uploadedAt. Los contratos anteriores de consultas, altas, modificaciones y mocks no exponen los arreglos privados.
+
+| HTTP | Códigos |
+| --- | --- |
+| 400 | INVALID_ID, FILE_REQUIRED, INVALID_UPLOAD_FIELD, INVALID_MULTIPART; en documentos también INVALID_DOCUMENT_TYPE |
+| 404 | USER_NOT_FOUND o DELIVERY_NOT_FOUND |
+| 413 | FILE_TOO_LARGE |
+| 415 | INVALID_FILE_TYPE |
+| 500 | FILE_SAVE_ERROR, DATABASE_ERROR o INTERNAL_SERVER_ERROR |
+
+Los parsers generales conservan INVALID_JSON (400) y PAYLOAD_TOO_LARGE (413) si se envía un cuerpo JSON malformado o excesivo en lugar del formulario. Los errores conservan {status, error, message} y X-Request-Id, sin detalles internos.
+
+### Comprobación con Swagger UI o Postman
+
+1. Iniciar la aplicación y obtener IDs propios con GET /api/users y GET /api/deliveries. Si no hay usuarios, crear un perfil ficticio con POST /api/users. Para disponer de drivers y entregas de práctica, usar el lote de mocks descrito abajo, únicamente en shipnow_mock_dev; sus GET de vista previa no persisten entidades.
+2. En Swagger UI, abrir Users → POST /api/users/{uid}/documents → Try it out. Completar uid, elegir type=user_document y seleccionar un PDF, JPEG o PNG ficticio. Execute debe responder 201 con la nueva metadata.
+3. Para una licencia, elegir un perfil cuyo role sea driver, type=driver_license y un PDF ficticio. El alta pública de usuarios no permite asignar role.
+4. Para un comprobante, abrir Deliveries → POST /api/deliveries/{did}/proof, completar did y seleccionar el archivo en proof. No agregar type ni otros campos. La operación no cambia el estado de la entrega.
+5. En Postman, crear una petición POST con la misma URL y seleccionar Body → form-data. Cambiar document o proof a **File** y elegir el archivo. Solo para documentos, agregar type como **Text**. Dejar que Postman genere Content-Type y boundary; quitar cualquier Content-Type manual heredado.
+6. Revisar el 201, X-Request-Id y la metadata. Un GET normal de la entidad no muestra documents ni proofs, y GET sobre el path privado devuelve 404. Cada POST exitoso agrega una asociación; no reemplaza la anterior.
+
+### Almacenamiento y límites operativos
+
+La raíz uploads se resuelve desde el módulo, independientemente del directorio de ejecución. Las carpetas documents, licenses, proofs y temporary se crean automáticamente al necesitarlas. Solo UUID y destinos constantes del servidor forman las rutas; el nombre del archivo enviado nunca define la ubicación. Se usa Multer diskStorage, sin cargar archivos completos en memoria.
+
+El flujo es temporal → validación → traslado definitivo → asociación mediante $push con validadores y sin upsert. Dos cargas concurrentes conservan sus asociaciones. Los intentos rechazados se limpian sin tocar archivos anteriores. Un archivo ya asociado se conserva aunque falle la respuesta HTTP. Si falla una escritura de MongoDB, se consulta su asociación por filename: se limpia al confirmar que no fue asociada, o se responde éxito si se confirma. Si la base tampoco permite comprobarlo, se conserva el archivo, se responde error y se registra upload.reconciliation_required. MongoDB y disco local no comparten una transacción.
+
+Los eventos user.document_added y delivery.proof_added se emiten después de confirmar la asociación. Los fallos de limpieza registran upload.cleanup_failed sin ocultar el error original. Los logs no incluyen nombres originales, rutas ni contenido.
+
+**Instancia académica sin autenticación ni control de acceso por usuario: usar exclusivamente archivos ficticios, nunca documentos personales reales.** uploads no se sirve como contenido estático y no hay endpoint de descarga. El disco local requiere respaldo junto con MongoDB y no es almacenamiento compartido para varias instancias.
+
+Eliminar un perfil conserva sus archivos físicos; no hay borrado automático de documentos ni comprobantes. La administración fuera de la API debe conciliar los nombres de disco contra documents.filename/proofs.filename en MongoDB, resolver resultados ambiguos con la base disponible y revisar respaldos antes de retirar archivos sin referencia. No eliminar un archivo basándose solamente en un error HTTP.
+
+/uploads/ y /src/public/img/uploads/ están ignorados por Git y nodemon. El catálogo mantiene su carga pública de imágenes hasta 2 MiB y sus URLs /img/uploads/. Los cinco JPEG históricos se versionan como recursos de catalog-legacy y conservan esas URLs mediante un alias, después de resolver el árbol público habitual.
+
 ## Documentación OpenAPI
 
 La UI y el JSON están disponibles en desarrollo, pruebas y producción. La especificación se construye una vez por proceso con swagger-jsdoc, usando rutas absolutas independientes del directorio de ejecución. No requiere autenticación. Abrir la documentación no modifica datos; **Try it out ejecuta peticiones reales**.
 
 | Tag | Alcance |
 | --- | --- |
-| Users | Listado, alta, detalle, actualización parcial mediante PUT y eliminación |
+| Users | Listado, alta, detalle, actualización parcial mediante PUT, eliminación y documentos privados |
 | Orders | Alta, listado con filtros y detalle de pedidos persistidos |
-| Deliveries | Listado con filtros y detalle de entregas persistidas |
+| Deliveries | Listado con filtros, detalle de entregas persistidas y comprobantes privados |
 | Mocks | Vistas previas y cargas ficticias transaccionales |
 | Logger | Diagnóstico de los seis niveles de logging |
 | Health | Disponibilidad HTTP independiente de MongoDB |
 
-La especificación cubre 20 operaciones y reutiliza schemas, parámetros y respuestas. Productos, carritos, vistas y sockets conservan el alcance descrito en este README. Mocks y Logger se muestran en Swagger, pero sus rutas siguen respondiendo 404 `ROUTE_NOT_FOUND` en producción.
+La especificación cubre 22 operaciones en 17 paths y reutiliza schemas, parámetros y respuestas. Productos, carritos, vistas y sockets conservan el alcance descrito en este README. Mocks y Logger se muestran en Swagger, pero sus rutas siguen respondiendo 404 `ROUTE_NOT_FOUND` en producción.
 
 ### Recorrido en navegador
 
@@ -310,7 +359,7 @@ npm.cmd run test:regression
 npm.cmd run test:functional
 ```
 
-- **node:test** (`test/`): regresiones de catálogo, carritos, vistas, uploads, Socket.io, perfiles, pedidos, entregas, mocks, persistencia, configuración y logging. Valida OpenAPI y sus referencias internas sin resolución externa, el inventario de 20 operaciones y los assets de Swagger.
+- **node:test** (`test/`): regresiones de catálogo, carritos, vistas, uploads, Socket.io, perfiles, pedidos, entregas, mocks, persistencia, configuración y logging. Valida OpenAPI y sus referencias internas sin resolución externa, el inventario de 22 operaciones y los assets de Swagger.
 - **Mocha** (`tests/functional/`): organiza los casos por recurso y ejecuta hooks de preparación y limpieza. **Chai** verifica estados HTTP, cabeceras, contratos y valores. **Supertest** envía peticiones a `createApp(...)` con routers, parsers, controllers, servicios y middleware reales.
 
 La configuración funcional está en `tests/support/`. Un preload exclusivo de Mocha fija `NODE_ENV=test`, y cada fábrica recibe el entorno explícitamente; los casos de producción lo seleccionan por app. **No hay variables que completar, no se lee .env, no se usa MONGODB_URI y no se necesita MongoDB ni un servidor iniciado previamente.**
@@ -318,6 +367,8 @@ La configuración funcional está en `tests/support/`. Un preload exclusivo de M
 El equivalente de una base de test son repositorios efímeros en memoria, independientes de la configuración de desarrollo. `beforeEach` crea fixtures, logger y app nuevos; `afterEach` descarta su estado. Supertest abre y cierra puertos efímeros con cada petición esperada con `await`; no usa localhost:8080 ni `--exit`. No se limpian colecciones reales y las precondiciones pertenecen al propio caso.
 
 Las pruebas funcionales cubren éxito y errores documentados de Users, Orders, Deliveries, Mocks, Logger y Health. Incluyen alta de pedidos, tipos estrictos, cálculo del total, referencias de cliente, paginación, filtros, errores de parser, fallos de persistencia, guard transaccional y correlación. Un chequeo final contrasta las respuestas ejercitadas con la matriz de estados HTTP de OpenAPI. Los fallos se inyectan en los límites de persistencia, no en rutas artificiales.
+
+Las cargas privadas se prueban con archivos sintéticos y directorios temporales por caso: bytes exactos, MIME/firma, límites, abortos, concurrencia, limpieza, fallos de disco, resultados ambiguos y conservación tras fallo de respuesta. Las regresiones verifican el $push, los esquemas y las URLs históricas del catálogo.
 
 La suite ordinaria no demuestra escrituras ni atomicidad de MongoDB real; esa comprobación se ejecuta por separado.
 

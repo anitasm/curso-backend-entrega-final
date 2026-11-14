@@ -1,6 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('node:http');
+const fs = require('node:fs/promises');
 const path = require('node:path');
 const os = require('node:os');
 const vm = require('node:vm');
@@ -60,6 +61,10 @@ function checkResponse(route, method, response) {
 }
 async function setup(t, options = {}) {
   const f = fixtures();
+  const uploadRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'shipnow-oas-'));
+  t.after(() => fs.rm(uploadRoot, { recursive: true, force: true }));
+  f.usersRepository.addDocument = async value => ({ _id: value });
+  f.usersRepository.hasDocument = async () => true;
   const originalCreate = f.usersRepository.create;
   f.usersRepository.create = async data => Object.assign(await originalCreate(data), times);
   const mocks = mockFixtures(options);
@@ -70,14 +75,14 @@ async function setup(t, options = {}) {
   const orderId = '000000000000000000000002', deliveryId = '000000000000000000000003';
   const order = { ...require('../src/mocks/orders.generator')(1, { customerIds: [id] })[0], _id: orderId, id: orderId, ...times };
   const delivery = { ...require('../src/mocks/deliveries.generator')(1, { orderIds: [orderId] })[0], _id: deliveryId, id: deliveryId, ...times };
-  const repository = row => ({ get: async value => value === row.id ? row : null, create: async data => ({ ...data, _id: '000000000000000000000004', id: '000000000000000000000004', ...times }), list: async ({ page }) => ({ docs: [row], page, totalPages: 1, hasPrevPage: false, hasNextPage: false, prevPage: null, nextPage: null }) });
-  const app = createApp({ ...f, mocksService: mocks.service, ordersService: new OrdersService(repository(order), f.usersRepository), deliveriesService: new DeliveriesService(repository(delivery)), nodeEnv: options.nodeEnv || 'test' });
+  const repository = row => ({ addProof: async value => ({ _id: value }), hasProof: async () => true, get: async value => value === row.id ? row : null, create: async data => ({ ...data, _id: '000000000000000000000004', id: '000000000000000000000004', ...times }), list: async ({ page }) => ({ docs: [row], page, totalPages: 1, hasPrevPage: false, hasNextPage: false, prevPage: null, nextPage: null }) });
+  const app = createApp({ ...f, uploadRoot, mocksService: mocks.service, ordersService: new OrdersService(repository(order), f.usersRepository), deliveriesService: new DeliveriesService(repository(delivery)), nodeEnv: options.nodeEnv || 'test' });
   const server = http.createServer(app);
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(() => new Promise(resolve => server.close(resolve)));
   const base = 'http://127.0.0.1:' + server.address().port;
   return { base, async request(route, method = 'GET', body) {
-    const r = await fetch(base + route, { method, ...(body === undefined ? {} : { headers: { 'content-type': 'application/json' }, body: typeof body === 'string' ? body : JSON.stringify(body) }) });
+    const r = await fetch(base + route, { method, ...(body === undefined ? {} : body instanceof FormData ? { body } : { headers: { 'content-type': 'application/json' }, body: typeof body === 'string' ? body : JSON.stringify(body) }) });
     return { status: r.status, body: await r.json(), id: r.headers.get('x-request-id') };
   } };
 }
@@ -90,6 +95,7 @@ test('OpenAPI: validación completa, refs internas, inventario exacto y ejemplos
   assert.equal(spec.openapi, '3.0.3'); assert.equal(spec.info.version, require('../package.json').version);
   assert.equal(spec.servers[0].url, '/'); assert.equal(spec.components.securitySchemes, undefined);
   const expected = {
+    '/api/users/{uid}/documents': ['post'], '/api/deliveries/{did}/proof': ['post'],
     '/api/users': ['get', 'post'], '/api/users/{uid}': ['get', 'put', 'delete'],
     '/api/orders': ['get', 'post'], '/api/orders/{oid}': ['get'], '/api/deliveries': ['get'], '/api/deliveries/{did}': ['get'],
     '/api/mocks/users': ['get', 'post'], '/api/mocks/mockingusers': ['get'], '/api/mocks/mockingdrivers': ['get'],
@@ -120,17 +126,28 @@ test('OpenAPI: validación completa, refs internas, inventario exacto y ejemplos
       }
     }
   }
-  assert.equal(ids.length, 20); assert.equal(new Set(ids).size, 20);
+  assert.equal(ids.length, 22); assert.equal(new Set(ids).size, 22);
   const walk = node => { if (!node || typeof node !== 'object') return; if (node.$ref) assert.ok(node.$ref.startsWith('#/components/')); Object.values(node).forEach(walk); };
   walk(spec);
 });
 
-test('OpenAPI: las 20 operaciones responden con los contratos documentados', async t => {
+test('OpenAPI: las 22 operaciones responden con los contratos documentados', async t => {
   const api = await setup(t);
   const input = { firstName: 'Alex', lastName: 'Ejemplo', email: 'alex@example.test' };
   const created = await api.request('/api/users', 'POST', input);
   checkResponse('/api/users', 'post', created); assert.equal(created.status, 201);
   const uid = created.body.payload.id;
+  for (const [route, documented, field] of [['/api/users/' + uid + '/documents', '/api/users/{uid}/documents', 'document'], ['/api/deliveries/000000000000000000000003/proof', '/api/deliveries/{did}/proof', 'proof']]) {
+    const form = new FormData();
+    form.set(field, new Blob(['%PDF-1.4\n% SYNTHETIC\n%%EOF'], { type: 'application/pdf' }), 'ficticio.pdf');
+    if (field === 'document') form.set('type', 'user_document');
+    const uploaded = await api.request(route, 'POST', form);
+    assert.equal(uploaded.status, 201); checkResponse(documented, 'post', uploaded);
+    const op = spec.paths[documented].post;
+    assert.equal(op.requestBody.required, true);
+    const input = deref(op.requestBody.content['multipart/form-data'].schema);
+    assert.equal(input.properties[field].format, 'binary'); assert.ok(input.required.includes(field));
+  }
   const orderResponse = await api.request('/api/orders', 'POST', { customer: uid, items: [{ name: 'Aro ficticio', quantity: 2, price: 125.5 }], deliveryAddress: 'Calle Ficticia 100' });
   checkResponse('/api/orders', 'post', orderResponse); assert.equal(orderResponse.status, 201);
   assert.equal(orderResponse.body.payload.total, 251); assert.equal(orderResponse.body.payload.status, 'created');
@@ -198,7 +215,7 @@ test('OpenAPI se resuelve desde otro cwd y no importa modelos ni secretos', () =
   const code = `
     const fs=require('node:fs'); fs.createWriteStream=()=>{throw Error('log prohibido')};
     const get=require(${JSON.stringify(modulePath)}); const s=get();
-    if(s.openapi!=='3.0.3'||Object.keys(s.paths).length!==15)process.exitCode=2;
+    if(s.openapi!=='3.0.3'||Object.keys(s.paths).length!==17)process.exitCode=2;
     const server=require('node:http').createServer(require(${JSON.stringify(appPath)})());
     server.listen(0,'127.0.0.1',async()=>{
       try {

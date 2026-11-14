@@ -5,3 +5,6 @@ node_modules/
 
 /logs/
 *.log
+
+/uploads/
+/src/public/img/uploads/

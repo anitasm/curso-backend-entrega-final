@@ -198,3 +198,52 @@ paths:
           $ref: "#/components/responses/USER_NOT_FOUND"
         "500":
           $ref: "#/components/responses/DATABASE_ERROR"
+  /api/users/{uid}/documents:
+    post:
+      tags: [Users]
+      operationId: addUserDocument
+      summary: Asociar documento privado a un perfil
+      description: "Un archivo, máximo 5 MiB inclusivos (5242880 bytes). PDF, JPEG o PNG con MIME y firma compatibles. type obligatorio; driver_license admite solo PDF y perfil driver. El orden de los campos no importa. Guarda en disco privado y asocia metadatos mediante push atómico. Devuelve solo la nueva asociación. Sin autenticación: usar exclusivamente archivos ficticios. MongoDB y disco no comparten transacción; un resultado ambiguo conserva el archivo para reconciliación."
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DocumentUpload'
+            encoding:
+              document:
+                contentType: application/pdf, image/jpeg, image/png
+      responses:
+        '201':
+          description: Archivo guardado y asociación confirmada
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentUploadResult'
+              example:
+                status: success
+                payload:
+                  userId: '000000000000000000000001'
+                  document:
+                    originalName: ficticio.pdf
+                    filename: 00000000-0000-4000-8000-000000000001.pdf
+                    path: uploads/documents/00000000-0000-4000-8000-000000000001.pdf
+                    mimeType: application/pdf
+                    size: 42
+                    type: user_document
+                    uploadedAt: '2026-01-01T12:00:00.000Z'
+        '400':
+          $ref: '#/components/responses/DocumentUploadError'
+        '404':
+          $ref: '#/components/responses/USER_NOT_FOUND'
+        '413':
+          $ref: '#/components/responses/FILE_TOO_LARGE'
+        '415':
+          $ref: '#/components/responses/INVALID_FILE_TYPE'
+        '500':
+          $ref: '#/components/responses/FileStorageError'

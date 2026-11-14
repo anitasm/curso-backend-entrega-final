@@ -2,7 +2,8 @@ const AppError = require('../errors/AppError');
 const normalize = document => {
   if (!document) return null;
   const source = typeof document.toObject === 'function' ? document.toObject() : document;
-  return { ...source, _id: String(source._id), id: String(source._id) };
+  const { documents, proofs, ...publicFields } = source;
+  return { ...publicFields, _id: String(source._id), id: String(source._id) };
 };
 async function persist(operation, { entity, fallback = 'DATABASE_ERROR' } = {}) {
   try { return await operation(); }

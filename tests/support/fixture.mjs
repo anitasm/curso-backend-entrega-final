@@ -13,9 +13,9 @@ export const batchInput = () => ({ users: 1, drivers: 1, orders: 1, deliveries: 
 export const privateFailure = () => new Error('mongodb://private:password@internal.example PRIVATE_TOKEN email@private.test');
 export const duplicate = field => Object.assign(privateFailure(), { code: 11000, keyPattern: { [field]: 1 } });
 
-export function fixture({ nodeEnv = config.nodeEnv, forbidden = false } = {}) {
+export function fixture({ nodeEnv = config.nodeEnv, forbidden = false, uploadRoot, uploadIO } = {}) {
   const base = helpers.fixtures(), faults = {}, calls = [], logs = [];
-  const orders = new Map(), deliveries = new Map();
+  const orders = new Map(), deliveries = new Map(), documents = new Map(), proofs = new Map();
   let sequence = 100;
   const persisted = data => {
     const id = (sequence++).toString(16).padStart(24, '0');
@@ -44,6 +44,18 @@ export function fixture({ nodeEnv = config.nodeEnv, forbidden = false } = {}) {
     }),
   });
   const ordersRepository = repository('orders', orders), deliveriesRepository = repository('deliveries', deliveries);
+  base.usersRepository.addDocument = (id, metadata) => run('users.addDocument', async () => {
+    if (!await base.usersRepository.get(id)) return null;
+    const entries = documents.get(id) || []; entries.push(structuredClone(metadata)); documents.set(id, entries);
+    return { _id: id };
+  });
+  base.usersRepository.hasDocument = (id, filename) => run('users.hasDocument', () => (documents.get(id) || []).some(d => d.filename === filename));
+  deliveriesRepository.addProof = (id, metadata) => run('deliveries.addProof', () => {
+    if (!deliveries.has(id)) return null;
+    const entries = proofs.get(id) || []; entries.push(structuredClone(metadata)); proofs.set(id, entries);
+    return { _id: id };
+  });
+  deliveriesRepository.hasProof = (id, filename) => run('deliveries.hasProof', () => (proofs.get(id) || []).some(d => d.filename === filename));
   const mocks = mockFixtures({ forbidden });
   for (const entity of ['users', 'orders', 'deliveries']) {
     const repo = mocks.dependencies[entity + 'Repository'], insert = repo.insertMany;
@@ -59,11 +71,11 @@ export function fixture({ nodeEnv = config.nodeEnv, forbidden = false } = {}) {
     return transaction(work);
   };
   const logger = { log: (level, message, meta) => logs.push({ level, message, ...meta }) };
-  const app = createApp({ ...base, ordersService: new OrdersService(ordersRepository, base.usersRepository), deliveriesService: new DeliveriesService(deliveriesRepository), mocksService: mocks.service, nodeEnv, logger });
+  const app = createApp({ ...base, ordersService: new OrdersService(ordersRepository, base.usersRepository), deliveriesService: new DeliveriesService(deliveriesRepository), mocksService: mocks.service, nodeEnv, logger, uploadRoot, uploadIO });
   return {
-    app, faults, calls, logs, orders, deliveries, mocks, ...base,
+    app, faults, calls, logs, orders, deliveries, documents, proofs, mocks, deliveriesRepository, ...base,
     seedOrder(data = {}) { const row = persisted({ ...orderInput('000000000000000000000001'), total: 251, priority: 'normal', status: 'created', ...data }); orders.set(row.id, row); return row; },
     seedDelivery(data = {}) { const row = persisted({ order: '000000000000000000000002', status: 'pending', ...data }); deliveries.set(row.id, row); return row; },
-    dispose() { orders.clear(); deliveries.clear(); calls.length = 0; logs.length = 0; mocks.batches.length = 0; for (const key of Object.keys(faults)) delete faults[key]; },
+    dispose() { orders.clear(); deliveries.clear(); documents.clear(); proofs.clear(); calls.length = 0; logs.length = 0; mocks.batches.length = 0; for (const key of Object.keys(faults)) delete faults[key]; },
   };
 }

@@ -1,5 +1,7 @@
 {
   "ignore": [
-    "logs/**"
+    "logs/**",
+    "uploads/**",
+    "src/public/img/uploads/**"
   ]
 }
