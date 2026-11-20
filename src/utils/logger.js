@@ -5,7 +5,7 @@ const DEFAULT_LOG_DIR = path.resolve(__dirname, '../../logs');
 const OPERATIONAL_WARNING = 'warning: No se pudo escribir un destino de logs; continúa el servicio.\n';
 
 // Importing this module does not load configuration or open any transport.
-function createLogger({ nodeEnv = 'development', logDir = DEFAULT_LOG_DIR, file = true,
+function createLogger({ nodeEnv = 'development', logLevel, logDir = DEFAULT_LOG_DIR, file = true,
   consoleTransport, transports, maxSize = '10m', report = text => process.stderr.write(text),
   fileFactory } = {}) {
   const winston = require('winston');
@@ -18,7 +18,7 @@ function createLogger({ nodeEnv = 'development', logDir = DEFAULT_LOG_DIR, file 
   const jsonFormat = () => winston.format.combine(winston.format.timestamp(), winston.format.json());
   if (!transports) {
     const output = consoleTransport || new winston.transports.Console({ stderrLevels: ['fatal'] });
-    output.level = nodeEnv === 'production' ? 'info' : 'debug';
+    output.level = logLevel ?? (nodeEnv === 'production' ? 'info' : 'debug');
     output.format = nodeEnv === 'production' ? jsonFormat() : winston.format.combine(
       winston.format.timestamp(),
       winston.format.printf(({ timestamp, level, message, ...meta }) => `${timestamp} ${level}: ${message} ${JSON.stringify(meta)}`),

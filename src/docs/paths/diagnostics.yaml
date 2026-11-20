@@ -27,7 +27,7 @@ paths:
         - "Health"
       operationId: "getHealth"
       summary: "Comprobar disponibilidad HTTP"
-      description: "Liveness independiente de MongoDB. Punto seguro para probar Try it out."
+      description: "Liveness HTTP: informa entorno y segundos de vida del proceso, sin consultar MongoDB. Un 200 no garantiza disponibilidad permanente de la base."
       responses:
         "200":
           description: "Operación completada"
@@ -40,4 +40,6 @@ paths:
                 $ref: "#/components/schemas/HealthResult"
               example:
                 status: "ok"
+                environment: "production"
+                uptime: 42.5
                 timestamp: "2026-01-01T12:00:00.000Z"

@@ -1,3 +1,4 @@
+const { CATALOG_SNAPSHOT_LIMIT } = require('../config/performance.config');
 const { link } = require('../utils/presentation');
 const { PRODUCT_STATUS } = require('../constants');
 const mapProduct = product => ({ ...product, displayStatus: product.availability === PRODUCT_STATUS.INACTIVE ? 'No disponible' : product.availability === PRODUCT_STATUS.OUT_OF_STOCK ? 'Sin stock' : 'Disponible', isAvailable: product.availability === PRODUCT_STATUS.AVAILABLE, mainThumbnail: product.thumbnails?.[0] || null });
@@ -27,6 +28,6 @@ module.exports = (productsService, cartsService) => ({
     } catch (error) { next(error); }
   },
   realtime: async (_req, res, next) => {
-    try { res.render('realTimeProducts', { title: 'ShipNow | Gestión de catálogo', products: await productsService.getProducts({ paginate: false, sort: 'desc' }) }); } catch (error) { next(error); }
+    try { res.render('realTimeProducts', { title: 'ShipNow | Gestión de catálogo', snapshotLimit: CATALOG_SNAPSHOT_LIMIT, products: await productsService.getProducts({ paginate: false, sort: 'desc', limit: CATALOG_SNAPSHOT_LIMIT }) }); } catch (error) { next(error); }
   },
 });

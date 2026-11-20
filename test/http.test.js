@@ -123,3 +123,19 @@ test('catálogo: las cinco imágenes históricas conservan su URL y bytes', asyn
     assert.deepEqual(Buffer.from(await r.arrayBuffer()), await fs.readFile(path.join(directory, name)));
   }
 });
+
+test('catálogo: snapshot explícito en vista y notificación, enlace paginado y offset seguro', async t => {
+  const f = await setup(t); const options = [], original = f.productsRepository.getProducts;
+  f.productsRepository.getProducts = async input => { options.push(input); return original(input); };
+  const view = await f.request('/realtimeproducts'); assert.equal(view.status, 200);
+  assert.match(view.body, /hasta 100 productos/); assert.match(view.body, /href="\/products"/);
+  assert.equal(options[0].paginate, false); assert.equal(options[0].limit, 100);
+  await f.request('/api/products', 'POST', validProduct);
+  assert.equal(options.at(-1).paginate, false); assert.equal(options.at(-1).limit, 100);
+  options.length = 0;
+  for (const route of ['/api/products', '/products']) {
+    const r = await f.request(route + '?page=100000000000000&limit=100'); assert.equal(r.status, 400); assert.equal(r.body.error, 'VALIDATION_ERROR');
+  }
+  assert.deepEqual(options, []);
+  assert.equal((await f.request('/api/products?paginate=false')).status, 400);
+});

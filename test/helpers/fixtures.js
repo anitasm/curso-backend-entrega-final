@@ -20,7 +20,7 @@ function fixtures() {
       if (options.query === 'true' || options.query === 'false') rows=rows.filter(row=>row.status===(options.query==='true'));
       else if (options.query) rows=rows.filter(row=>row.category.toLowerCase()===options.query.toLowerCase());
       if (options.sort) rows.sort((a,b)=>(a.price-b.price)*(options.sort==='asc'?1:-1));
-      return options.paginate ? paginate(rows,options) : rows;
+      return options.paginate ? paginate(rows,options) : rows.slice(0,options.limit);
     },
     getProductById:async id=>products.get(id), createProduct:async data=>create(products,data),
     updateProduct:async (id,data)=>update(products,id,data), deleteProduct:async id=>remove(products,id),

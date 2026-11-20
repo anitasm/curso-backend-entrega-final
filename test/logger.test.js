@@ -112,3 +112,13 @@ test('Winston: el formato permite solo metadatos seguros, nunca mensajes arbitra
   assert.deepEqual(Object.keys(row).sort(), ['code', 'event', 'level', 'message', 'method', 'statusCode', 'timestamp']);
   out.stream.destroy();
 });
+
+test('Winston: LOG_LEVEL fatal restringe consola sin perder error en archivo', async t => {
+  const logDir = await directory(t), out = output();
+  const logger = createLogger({ nodeEnv: 'production', logLevel: 'fatal', logDir, consoleTransport: out.transport });
+  for (const level of sequence) logEvent(level, 'logger.test', { synthetic: true }, logger);
+  await logger.shutdown();
+  assert.deepEqual(out.text().trim().split(/\r?\n/).map(JSON.parse).map(row => row.level), ['fatal']);
+  assert.deepEqual((await records(logDir)).rows.map(row => row.level), ['error', 'fatal']);
+  out.stream.destroy();
+});

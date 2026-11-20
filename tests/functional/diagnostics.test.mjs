@@ -18,7 +18,7 @@ describe('Logger y Health: diagnóstico y entorno', () => {
     expect(events.map(l => l.level)).to.deep.equal(['debug', 'http', 'info', 'warning', 'error', 'fatal']);
     expect(events.every(l => l.synthetic && l.requestId === r.headers['x-request-id'])).to.equal(true);
     const health = await api.get('/api/health'); const body = response(health, '/api/health', 'get', 200);
-    expect(body).to.have.all.keys('status', 'timestamp'); expect(body.status).to.equal('ok');
+    expect(body).to.have.all.keys('status', 'environment', 'uptime', 'timestamp'); expect(body.status).to.equal('ok'); expect(body.environment).to.equal('test'); expect(body.uptime).to.be.a('number').and.at.least(0);
     expect(Number.isFinite(Date.parse(body.timestamp))).to.equal(true);
     expect(health.headers['x-request-id']).not.to.equal(r.headers['x-request-id']); expect(f.calls).to.deep.equal([]);
   });

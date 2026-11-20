@@ -22,14 +22,17 @@ Completar las variables de `.env` localmente:
 | `PORT` | Puerto entero entre 1 y 65535; la plantilla usa `8080` |
 | `NODE_ENV` | `development`, `test` o `production`; la plantilla usa `development` |
 | `MONGODB_URI` | URI `mongodb://` o `mongodb+srv://`; obligatoria y sin valor en la plantilla |
+| `LOG_LEVEL` | Opcional: `debug`, `http`, `info`, `warning`, `error` o `fatal`. Si falta: `debug` en development/test e `info` en production. Vacío o inválido impide iniciar. |
 
-Las tres variables son obligatorias. Para las cargas ficticias, la URI debe seleccionar la base `shipnow_mock_dev`. Conservar las credenciales en `.env`, que está ignorado por Git. En Atlas, autorizar la IP de conexión y usar un usuario de base con los permisos necesarios.
+PORT, NODE_ENV y MONGODB_URI son obligatorias; LOG_LEVEL es opcional. Para las cargas ficticias, la URI debe seleccionar la base `shipnow_mock_dev`. Conservar las credenciales en `.env`, que está ignorado por Git. En Atlas, autorizar la IP de conexión y usar un usuario de base con los permisos necesarios.
 
 ```powershell
 npm.cmd run dev
 ```
 
 El catálogo queda disponible en `http://localhost:8080/products` con el puerto de la plantilla. `npm.cmd start` inicia sin nodemon. Los cambios en `.env` requieren reiniciar el proceso. La base dedicada puede tener el catálogo vacío: los mocks no crean productos.
+
+La plantilla propone LOG_LEVEL=debug. En producción usar NODE_ENV=production y LOG_LEVEL=info. La configuración se valida antes de conectar y escuchar; los errores no muestran los valores. La UI y Swagger usan el mismo origen: no hay URLs de servicios externos ni JWT que configurar.
 
 Swagger UI: [documentación interactiva](http://localhost:8080/api/docs/). Especificación: [OpenAPI JSON](http://localhost:8080/api/docs/openapi.json). Reemplazar `8080` por el `PORT` configurado. Swagger usa el mismo origen y puerto de la aplicación.
 
@@ -55,13 +58,91 @@ Router → Controller → Service → Repository → Model / MongoDB
 
 Los controllers propagan errores mediante `next(error)`. El orden de Express es contexto y logging HTTP → parsers y rutas → ruta desconocida → middleware global de cuatro parámetros. Si ya se enviaron cabeceras, un manejador final registra el fallo y cierra la respuesta parcial, sin intentar emitir otro JSON ni exponer la excepción.
 
+## Límites y ciclo de vida
+
+Los listados conservan página 1, límite 10 y máximo 100 (la vista de catálogo propone 8). `(page - 1) * limit` debe ser un entero seguro no negativo; si desborda, se devuelve 400 `VALIDATION_ERROR` antes de consultar. `page=100000000000000&limit=100` es un ejemplo rechazado aunque cada valor individual sea un entero seguro.
+
+La gestión en vivo, la conexión Socket.io y las notificaciones `productsUpdated` solicitan un snapshot de hasta 100 productos, ordenado por precio descendente e `_id` ascendente. `CATALOG_SNAPSHOT_LIMIT` centraliza ese máximo y el repositorio aplica `.limit()` en MongoDB antes de traer los documentos. El resultado sigue siendo un arreglo. La gestión muestra el límite y enlaza a `/products`, que conserva el catálogo paginado completo; `/api/products` también conserva su paginación.
+
+Se mantienen filtros, proyecciones y `lean`, los límites de mocks (100 registros), JSON y formularios URL-encoded (100 KiB), imágenes del catálogo (2 MiB) y archivos privados (5 MiB con lectura de firma de 16 bytes). El request path no incorpora I/O síncrona ni logs de payloads. La creación síncrona del directorio de logs ocurre únicamente al inicializar Winston. Las consultas de listados no hacen una lectura por cada fila; el carrito conserva su `populate` y sus operaciones existentes. Estos límites controlan trabajo y memoria, pero no constituyen mediciones de latencia o throughput.
+
+Se conservan los índices `_id` y los únicos de código de producto, email de usuario y pedido de entrega. No se agregan índices ni migraciones sin mediciones que justifiquen su costo de escritura e inicialización. Los filtros y ordenamientos pueden requerir escaneos: no se afirma una mejora de rendimiento de Atlas.
+
+GET `/api/health` es liveness del proceso HTTP, disponible en todos los entornos:
+
+```json
+{"status":"ok","environment":"production","uptime":42.5,"timestamp":"2026-11-20T12:00:00.000Z"}
+```
+
+No consulta MongoDB ni expone hosts, rutas o credenciales. Un 200 no garantiza disponibilidad permanente de la base. La fábrica de app recibe el entorno explícitamente y usa `development` cuando se omite, sin leer `.env`.
+
+SIGINT, SIGTERM y `close()` comparten un cierre idempotente: dejan de aceptar conexiones, cierran Socket.io, esperan HTTP y las consultas iniciales de sockets activas, desconectan MongoDB una sola vez y vacían los logs. Las conexiones keep-alive que terminan su respuesta se cierran durante el drenado. Los listeners de señales se retiran al finalizar. El cierre normal termina naturalmente; un fallo mantiene salida distinta de cero.
+
+El plazo global es de **10 segundos** (`SHUTDOWN_TIMEOUT_MS`), con timer cancelable y `unref`. Si vence, se registra `server.shutdown_timeout`, se fuerzan conexiones HTTP y upgrades WebSocket y se termina con código 1. La limpieza y el vaciado restantes son de mejor esfuerzo en ese caso; no se promete completar operaciones bloqueadas. `docker stop --time 20` deja margen antes del límite externo del contenedor.
+
+## Docker
+
+La imagen usa Node oficial Debian slim `24.22.3-bookworm-slim`, compatible con el lock. Instala con `npm ci --omit=dev` y copia `src/` completo: vistas, YAML de OpenAPI, JS/CSS e imágenes históricas. Se conserva `package.json`, del que Swagger obtiene la versión. Para una base idéntica entre reconstrucciones también puede fijarse su digest; un tag de patch puede recibir reconstrucciones de su sistema base.
+
+El runtime utiliza el usuario `node` (no root), con directorios escribibles `/app/uploads`, `/app/src/public/img/uploads` y `/app/logs`. `.dockerignore` excluye credenciales, Git, dependencias del host, pruebas, logs y archivos cargados del contexto. Ninguna URI se incorpora mediante ARG o ENV. El CMD exec `node src/server.js` ejecuta el mismo entrypoint que `npm start`, recibiendo directamente las señales.
+
+Con Docker Engine disponible, desde la raíz en PowerShell:
+
+```powershell
+docker build -t curso-backend-modulo-8:local .
+docker run -d --name shipnow-modulo-8 --env-file .env -e NODE_ENV=production -e PORT=8080 -e LOG_LEVEL=info -p 127.0.0.1:8081:8080 --mount type=volume,source=shipnow8-documents,target=/app/uploads --mount type=volume,source=shipnow8-catalog,target=/app/src/public/img/uploads --mount type=volume,source=shipnow8-logs,target=/app/logs curso-backend-modulo-8:local
+docker logs shipnow-modulo-8
+docker inspect --format '{{.State.Health.Status}}' shipnow-modulo-8
+```
+
+`--env-file .env` carga configuración externa solo en runtime. Los tres `-e` sobrescriben los valores de desarrollo del archivo; la URI queda en ese archivo privado. `EXPOSE 8080` documenta el puerto interno; `-p` publica el 8081 del host, restringido a localhost, sin ocupar el servidor local en 8080.
+
+- Catálogo: [localhost:8081/products](http://localhost:8081/products).
+- Swagger: [localhost:8081/api/docs/](http://localhost:8081/api/docs/).
+- Liveness: [localhost:8081/api/health](http://localhost:8081/api/health).
+
+El HEALTHCHECK usa Node, el PORT runtime y `/api/health`, con timeout interno de 3 segundos y máximo Docker de 5 segundos; exige HTTP 200 y `status=ok`. Se ejecuta cada 30 segundos, con 60 segundos iniciales y 3 intentos. El arranque espera Atlas e inicialización de índices. El probe no necesita curl ni escribe en la base. Swagger permanece disponible en production y **Try it out ejecuta peticiones reales**. Mocks y `/loggerTest` responden 404 en ese entorno.
+
+Atlas sigue siendo externo: el contenedor necesita DNS, salida de red y autorización para la IP de salida actual. `localhost` en una URI apunta al propio contenedor. Un error de conexión termina el arranque con código 1 y un evento seguro; revisar red, TLS, permisos de Atlas y configuración local sin publicar la URI. No se requiere MongoDB local ni Compose.
+
+Para detener y revisar el cierre:
+
+```powershell
+docker stop --time 20 shipnow-modulo-8
+docker inspect --format '{{.State.ExitCode}}' shipnow-modulo-8
+docker logs --tail 10 shipnow-modulo-8
+```
+
+Docker reciente puede avisar que `--time` fue reemplazado por `--timeout`; `docker stop --timeout 20 shipnow-modulo-8` es equivalente. El cierre normal registra `server.stopped` y devuelve 0.
+
+### Volúmenes y recreación
+
+Los tres volúmenes nombrados separan documentos privados, imágenes nuevas del catálogo y logs. En un volumen nuevo Docker conserva los permisos del directorio preparado en la imagen, permitiendo escribir como `node`, sin chmod 777. Los JPEG históricos permanecen en la imagen y sus URLs anteriores siguen funcionando.
+
+**Los volúmenes nuevos no contienen los bytes que estaban en la computadora.** Los metadatos existentes en MongoDB no copian los adjuntos. Antes de reutilizar esa base, respaldar y copiar de forma controlada `uploads/` y las imágenes nuevas a sus volúmenes correspondientes, conservando rutas relativas y permisos. No sobrescribir archivos existentes sin conciliarlos. La política de archivos privados, eliminación y reconciliación se mantiene en la sección correspondiente.
+
+Si el nombre del contenedor ya existe, inspeccionar primero su estado y sus mounts:
+
+```powershell
+docker ps -a --filter name=shipnow-modulo-8
+docker inspect --format '{{range .Mounts}}{{println .Name .Destination}}{{end}}' shipnow-modulo-8
+```
+
+Puede utilizarse otro nombre. Para reemplazarlo, detenerlo, verificar respaldos y mounts, y retirar únicamente ese contenedor con `docker rm shipnow-modulo-8`. Repetir después el mismo comando `docker run` con los tres mounts para conservar los archivos. No usar `prune`, `volume rm` ni `rm -v` para esta operación.
+
+### Alcance operativo
+
+Se prepara una instancia con Atlas externo y disco/volúmenes locales, sin autenticación del titular de documentos: usar solo archivos ficticios. Docker no hace apta la aplicación para documentos personales en una exposición pública.
+
+Escalar verticalmente significa asignar más recursos a esa instancia. Escalar horizontalmente implica varias instancias y requiere resolver almacenamiento compartido o externo, coordinación de Socket.io con un adapter compatible y afinidad si se usa polling. Son trabajos futuros: Docker no sincroniza por sí solo archivos, sesiones ni eventos entre réplicas. Referencia: [Socket.io con múltiples nodos](https://socket.io/docs/v4/using-multiple-nodes/).
+
 ## API y vistas
 
 Las respuestas de éxito de las API usan `status: "success"` y `payload`, salvo las variantes de mocks y health indicadas abajo. Los listados paginados incluyen página, enlaces y total de páginas.
 
 | Método | Ruta | Función |
 | --- | --- | --- |
-| GET | `/api/health` | Disponibilidad HTTP: `status: "ok"` y `timestamp`; no consulta MongoDB |
+| GET | `/api/health` | Liveness HTTP: `status`, `environment`, `uptime` en segundos y `timestamp`; no consulta MongoDB |
 | GET / POST | `/api/products` | Listar / crear productos |
 | GET / PUT / DELETE | `/api/products/:pid` | Consultar / actualizar / eliminar producto |
 | GET / POST | `/api/users` | Listar / crear perfiles |
@@ -170,7 +251,7 @@ La especificación cubre 22 operaciones en 17 paths y reutiliza schemas, paráme
 ### Recorrido en navegador
 
 1. Con el servidor iniciado, abrir [Swagger UI](http://localhost:8080/api/docs/).
-2. Desplegar **Health → GET /api/health → Try it out → Execute**. Debe responder 200 con `status: "ok"`, `timestamp` y la cabecera `X-Request-Id`.
+2. Desplegar **Health → GET /api/health → Try it out → Execute**. Debe responder 200 con `status: "ok"`, `environment`, `uptime` no negativo, `timestamp` ISO y la cabecera `X-Request-Id`.
 3. En **Orders → GET /api/orders**, usar `status=created`, `page=1`, `limit=10`. En **Deliveries → GET /api/deliveries**, usar `status=pending`. Una lista vacía también es una respuesta 200 válida.
 4. Para detalles, copiar un `id` de un listado y usarlo en `oid` o `did`. Los IDs simulados de las vistas previas de mocks no garantizan documentos persistidos.
 5. En desarrollo o pruebas, ejecutar **Logger → GET /loggerTest** y luego Health. El diagnóstico devuelve 200 y el fatal simulado no detiene el servidor.
@@ -298,7 +379,7 @@ El servidor inicializa un único logger después de validar la configuración. I
 | `http` | 4 | Acceso HTTP: método, estado y duración |
 | `debug` | 5 | Inicio de generación con cantidades validadas |
 
-Winston admite los niveles con prioridad numérica menor o igual al umbral. En `development` y `test`, la consola muestra desde `debug`, con timestamp y metadatos legibles. En `production`, muestra desde `info` en JSON; no incluye accesos `http` ni eventos `debug`. No se requiere una variable adicional.
+Winston admite los niveles con prioridad numérica menor o igual al umbral. LOG_LEVEL controla solo la consola. Sin esa variable, development/test usa debug y production usa info. El formato es legible en development/test y JSON en production; con el default info no aparecen accesos http ni eventos debug. El logger global admite debug para que un umbral de consola fatal no suprima los errores destinados al archivo.
 
 El archivo admite únicamente `error` y `fatal`, independientemente del umbral de consola. Se escribe JSON por línea en `logs/errors-%DATE%.log`, con fecha `YYYY-MM-DD`, rotación a los 10 MB y retención de 14 días. La auditoría usa `logs/.errors-audit.json`; no se crean enlaces simbólicos. Git ignora `/logs/` y `*.log`, y nodemon excluye `logs/**` para evitar reinicios por la rotación.
 
@@ -318,7 +399,7 @@ Ejemplo ficticio de registro:
 
 1. Importar [Errores HTTP y logging](postman/ShipNow-Errores.postman_collection.json) y ajustar su variable `baseUrl` al puerto configurado, por ejemplo `http://localhost:8080`.
 2. En `development` o `test`, ejecutar la carpeta **03 - Logging sin escrituras**. GET `/loggerTest` devuelve 200 y `{"status":"success","message":"Logs de diagnóstico generados"}`.
-3. Abrir **Test Results** y copiar `X-Request-Id` desde las cabeceras de respuesta. En consola aparecen seis eventos `logger.test`, uno por nivel, con `synthetic: true`, y un acceso `http.access`. El `fatal` simulado no apaga el servidor.
+3. Abrir **Test Results** y copiar `X-Request-Id` desde las cabeceras de respuesta. Con LOG_LEVEL=debug aparecen en consola seis eventos `logger.test`, uno por nivel, con `synthetic: true`, y un acceso `http.access`. El `fatal` simulado no apaga el servidor.
 4. Enviar GET `/api/health`: devuelve 200 con `status: "ok"` y su propio ID. Enviar GET `/api/mocks/users?qty=-1`: devuelve 400 `INVALID_MOCK_AMOUNT` y genera un `warning`, sin insertar datos.
 5. Buscar el ID del diagnóstico en la consola y en los archivos para correlacionar esa petición. En producción, `/loggerTest` responde el 404 habitual `ROUTE_NOT_FOUND` y no emite eventos simulados.
 
@@ -336,7 +417,7 @@ if ($unexpected.Count -gt 0) { throw "Se encontraron niveles inesperados." }
 "Archivo verificado: solo error y fatal."
 ```
 
-El ID del diagnóstico debe tener dos registros persistidos: `error` y `fatal`. Los avisos 4xx quedan en consola, no en estos archivos.
+El ID del diagnóstico debe tener dos registros persistidos: `error` y `fatal`. Los avisos 4xx se admiten en consola si LOG_LEVEL incluye warning; nunca se escriben en estos archivos.
 
 ## Testing
 
@@ -362,6 +443,8 @@ npm.cmd run test:functional
 - **node:test** (`test/`): regresiones de catálogo, carritos, vistas, uploads, Socket.io, perfiles, pedidos, entregas, mocks, persistencia, configuración y logging. Valida OpenAPI y sus referencias internas sin resolución externa, el inventario de 22 operaciones y los assets de Swagger.
 - **Mocha** (`tests/functional/`): organiza los casos por recurso y ejecuta hooks de preparación y limpieza. **Chai** verifica estados HTTP, cabeceras, contratos y valores. **Supertest** envía peticiones a `createApp(...)` con routers, parsers, controllers, servicios y middleware reales.
 
+Las regresiones incluyen configuración de LOG_LEVEL, offsets inseguros, snapshots limitados y cierre con HTTP/Socket.io reales y base simulada. La prueba de señal SIGTERM se omite en Windows y puede ejecutarse en Linux; close() y el plazo forzado se prueban de forma portable.
+
 La configuración funcional está en `tests/support/`. Un preload exclusivo de Mocha fija `NODE_ENV=test`, y cada fábrica recibe el entorno explícitamente; los casos de producción lo seleccionan por app. **No hay variables que completar, no se lee .env, no se usa MONGODB_URI y no se necesita MongoDB ni un servidor iniciado previamente.**
 
 El equivalente de una base de test son repositorios efímeros en memoria, independientes de la configuración de desarrollo. `beforeEach` crea fixtures, logger y app nuevos; `afterEach` descarta su estado. Supertest abre y cierra puertos efímeros con cada petición esperada con `await`; no usa localhost:8080 ni `--exit`. No se limpian colecciones reales y las precondiciones pertenecen al propio caso.
@@ -371,6 +454,15 @@ Las pruebas funcionales cubren éxito y errores documentados de Users, Orders, D
 Las cargas privadas se prueban con archivos sintéticos y directorios temporales por caso: bytes exactos, MIME/firma, límites, abortos, concurrencia, limpieza, fallos de disco, resultados ambiguos y conservación tras fallo de respuesta. Las regresiones verifican el $push, los esquemas y las URLs históricas del catálogo.
 
 La suite ordinaria no demuestra escrituras ni atomicidad de MongoDB real; esa comprobación se ejecuta por separado.
+
+### Verificación registrada (20/11/2026)
+
+- Instalación desde lock con `npm ci` y suite completa con Node 26.13.0 en Windows: 88 regresiones aprobadas, una prueba de señal omitida por plataforma y 160 pruebas funcionales aprobadas.
+- Imagen construida con Node 24.22.3 Debian slim y dependencias exclusivamente de runtime. Se verificaron UID 1000, ausencia de `.env`, Git, pruebas y cargas locales, y presencia de YAML, vistas y cinco imágenes históricas.
+- Las cuatro pruebas de ciclo de vida pasaron dentro de Linux, incluida SIGTERM, sin red externa ni MongoDB real.
+- En un contenedor con repositorios en memoria: health `healthy`, Swagger HTML/JSON, assets, catálogo y listados 200; mocks/logger y rutas privadas 404 en production. Los tres volúmenes exclusivos permitieron escribir como `node` en raíz/subcarpetas y conservaron los marcadores al recrear el contenedor. `docker stop` terminó con código 0 y los logs persistidos contenían solo error/fatal. Los recursos exclusivos de comprobación se retiraron.
+- Verificación manual posterior con Atlas: conexión establecida, contenedor `healthy`, health con `environment: "production"`, cierre registrado mediante `server.stopped` y reinicio con `docker start`. El problema inicial de conexión TLS quedó resuelto para esta comprobación. Estos resultados no constituyen mediciones de rendimiento ni una validación de transacciones de Atlas; no se ejecutó la integración optativa de rollback.
+- npm reportó 8 vulnerabilidades con dependencias de desarrollo y 4 moderadas en el runtime. Se conservó el lock; no se aplicaron actualizaciones incompatibles automáticas.
 
 ### Integración con MongoDB
 

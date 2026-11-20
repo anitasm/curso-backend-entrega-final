@@ -12,6 +12,8 @@ const messages = Object.freeze({
   'order.created': 'Pedido creado',
   'mocks.committed': 'Lote de mocks confirmado',
   'database.connected': 'Conexión a MongoDB establecida',
+  'server.shutdown_timeout': 'Plazo de cierre agotado; se fuerza la salida',
+  'server.stopped': 'Cierre del servidor completado',
   'server.started': 'ShipNow / Rina escuchando',
   'server.config_failed': 'Configuración inválida: no se pudo iniciar la aplicación',
   'server.database_failed': 'No se pudo iniciar la aplicación: conexión a MongoDB fallida',

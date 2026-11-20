@@ -1,4 +1,5 @@
 const Product = require('../models/Product');
+const { CATALOG_SNAPSHOT_LIMIT } = require('../config/performance.config');
 const { normalize, persist: execute } = require('./persistence');
 const persist = operation => execute(operation, { entity: 'products' });
 const PUBLIC_FIELDS = 'title description code price stock status category thumbnails createdAt updatedAt';
@@ -11,7 +12,11 @@ class ProductsRepository {
       if (query === 'true' || query === 'false') filter.status = query === 'true';
       else if (query) filter.category = { $regex: '^' + escapeRegex(query) + '$', $options: 'i' };
       const order = sort ? { price: sort === 'asc' ? 1 : -1, _id: 1 } : { createdAt: -1, _id: 1 };
-      if (!paginate) return (await Product.find(filter).select(PUBLIC_FIELDS).sort(order).lean()).map(normalize);
+      if (!paginate) {
+        // Defend the DB boundary too: zero/negative/unsafe values must never remove the limit.
+        const snapshotLimit = Number.isSafeInteger(limit) && limit > 0 ? Math.min(limit, CATALOG_SNAPSHOT_LIMIT) : CATALOG_SNAPSHOT_LIMIT;
+        return (await Product.find(filter).select(PUBLIC_FIELDS).sort(order).limit(snapshotLimit).lean()).map(normalize);
+      }
       const result = await Product.paginate(filter, { page, limit, sort: order, select: PUBLIC_FIELDS, lean: true, leanWithId: false });
       return { ...result, docs: result.docs.map(normalize) };
     });

@@ -20,7 +20,7 @@ function createApp({ productsService, usersService, cartsService, mocksService, 
   if (['development', 'test'].includes(nodeEnv)) app.use('/loggerTest', require('./routes/logger.router')());
   if (deliveriesService) app.use('/api/deliveries', require('./routes/deliveries.router')(deliveriesService, receive));
   app.use('/api/docs', require('./docs/router')());
-  app.use('/api/health', require('./routes/health.router'));
+  app.use('/api/health', require('./routes/health.router')(nodeEnv));
   app.use('/api/products', require('./routes/products.router')(productsService, upload));
   app.use('/api/users', require('./routes/users.router')(usersService, receive));
   app.use('/api/carts', require('./routes/carts.router')(cartsService));

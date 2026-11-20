@@ -36,3 +36,17 @@ test('Modelos: índices únicos, roles, restricciones numéricas y nombres conse
   await assert.rejects(new Product({...valid,stock:1.5}).validate());
   await assert.rejects(new User({firstName:'A',lastName:'B',email:'x@example.test',role:'other'}).validate());
 });
+
+test('Repository Products: snapshot aplica límite en MongoDB, proyección y sort estables', async t => {
+  let captured;
+  t.mock.method(Product, 'find', filter => {
+    captured = { filter };
+    return { select(value) { captured.fields = value; return this; }, sort(value) { captured.sort = value; return this; }, limit(value) { captured.limit = value; return this; }, async lean() { return [{ _id: '000000000000000000000001', title: 'Ficticio' }]; } };
+  });
+  const repo = new Repository();
+  for (const [limit, expected] of [[100,100], [3,3], [1000,100], [0,100], [-1,100], [Infinity,100], [Number.MAX_SAFE_INTEGER+1,100]]) {
+    const result = await repo.getProducts({ paginate: false, sort: 'desc', limit });
+    assert.equal(captured.limit, expected); assert.deepEqual(captured.sort, { price: -1, _id: 1 }); assert.match(captured.fields, /title description/);
+    assert.ok(Array.isArray(result)); assert.equal(result[0].id, result[0]._id);
+  }
+});

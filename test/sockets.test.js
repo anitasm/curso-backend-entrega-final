@@ -8,7 +8,7 @@ test('Socket: carga inicial y errorMessage usan el servicio',async()=>{
   const events=[];
   const socket={emit:(name,data)=>events.push({name,data})};
   const io={on:(event,handler)=>{assert.equal(event,'connection');connection=handler;}};
-  registerProductSocket(io,{getProducts:async options=>{assert.deepEqual(options,{paginate:false,sort:'desc'});return [{id:'example'}];}});
+  registerProductSocket(io,{getProducts:async options=>{assert.deepEqual(options,{paginate:false,sort:'desc',limit:100});return [{id:'example'}];}});
   await connection(socket);assert.equal(events[0].name,'productsUpdated');assert.equal(events[0].data[0].id,'example');
   registerProductSocket(io,{getProducts:async()=>{throw new Error('private');}});
   await connection(socket);assert.equal(events[1].name,'errorMessage');assert.doesNotMatch(events[1].data,/private/);

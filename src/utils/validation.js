@@ -22,6 +22,8 @@ const pagination = (input = {}) => {
   const page = input.page === undefined ? 1 : number(input.page, 'page', true, 1);
   const limit = input.limit === undefined ? 10 : number(input.limit, 'limit', true, 1);
   if (limit > 100) invalid('limit no puede superar 100');
+  const offset = (page - 1) * limit;
+  if (!Number.isSafeInteger(offset) || offset < 0) invalid('El desplazamiento de paginación debe ser un entero seguro');
   return { page, limit };
 };
 const found = (value, code) => {

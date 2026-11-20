@@ -6,30 +6,25 @@ const createApp = require('./app');
 const { registerProductSocket } = require('./sockets/products');
 const { createLogger } = require('./utils/logger');
 const { logEvent, startupCodes } = require('./utils/log-events');
-async function startServer({ loggerFactory = createLogger } = {}) {
+async function startServer({ loggerFactory = createLogger, shutdownTimeoutMs } = {}) {
   let server, io, logger;
   let connectionAttempted = false;
   let stage = 'server.config_failed';
-  let closing;
-  const onSignal = () => { void close(); };
-  async function close() {
-    if (closing) return closing;
-    closing = (async () => {
+  let closing = false, drainSockets;
+  const onSignal = () => { void close().catch(() => { process.exitCode = 1; }); };
+  const shutdown = require('./utils/shutdown')({
+    resources: () => ({ server, io, logger, drainSockets, disconnect: () => connectionAttempted ? disconnectDB() : undefined }),
+    onStart: () => { closing = true; },
+    removeListeners: () => {
       process.removeListener('SIGINT', onSignal);
       process.removeListener('SIGTERM', onSignal);
-      try {
-        if (io) await new Promise(resolve => io.close(resolve));
-        else if (server?.listening) await new Promise(resolve => server.close(resolve));
-      } catch { logEvent('warning', 'server.cleanup_failed', {}, logger); }
-      try { if (connectionAttempted) await disconnectDB(); }
-      catch { logEvent('warning', 'server.cleanup_failed', {}, logger); }
-      await logger?.shutdown?.();
-    })();
-    return closing;
-  }
+    },
+    timeoutMs: shutdownTimeoutMs,
+  });
+  const close = () => shutdown();
   try {
     const config = loadConfig();
-    logger = loggerFactory({ nodeEnv: config.nodeEnv });
+    logger = loggerFactory({ nodeEnv: config.nodeEnv, logLevel: config.logLevel });
     stage = 'server.prepare_failed';
     const ProductsRepository = require('./repositories/products.repository');
     const UsersRepository = require('./repositories/users.repository');
@@ -67,9 +62,13 @@ async function startServer({ loggerFactory = createLogger } = {}) {
     }
     const app = createApp({ productsService, usersService, cartsService, mocksService, ordersService, deliveriesService, nodeEnv: config.nodeEnv, logger });
     server = http.createServer(app);
+    // Connections active when close begins become idle only after their response finishes.
+    server.on('request', (_req, res) => res.once('finish', () => {
+      if (closing) setImmediate(() => server.closeIdleConnections());
+    }));
     io = new Server(server);
     app.set('io', io);
-    registerProductSocket(io, productsService, logger);
+    drainSockets = registerProductSocket(io, productsService, logger);
     stage = 'server.listen_failed';
     await new Promise((resolve, reject) => {
       const failed = error => { server.removeListener('listening', ready); reject(error); };
@@ -82,10 +81,10 @@ async function startServer({ loggerFactory = createLogger } = {}) {
       if (closing) return;
       process.exitCode = 1;
       logEvent('fatal', 'server.failed', { code: startupCodes['server.failed'] }, logger);
-      void close();
+      void close().catch(() => { process.exitCode = 1; });
     });
-    process.once('SIGINT', onSignal);
-    process.once('SIGTERM', onSignal);
+    process.on('SIGINT', onSignal);
+    process.on('SIGTERM', onSignal);
     logEvent('info', 'server.started', { port: config.port, nodeEnv: config.nodeEnv }, logger);
     return { app, server, io, logger, close };
   } catch (error) {
@@ -94,7 +93,7 @@ async function startServer({ loggerFactory = createLogger } = {}) {
     if (!logger) logger = loggerFactory({ nodeEnv: 'production' });
     const event = stage === 'server.listen_failed' && error.code === 'EADDRINUSE' ? 'server.port_in_use' : stage;
     logEvent('fatal', event, { code: startupCodes[event] }, logger);
-    await close();
+    await close().catch(() => { process.exitCode = 1; });
   }
 }
 if (require.main === module) void startServer();

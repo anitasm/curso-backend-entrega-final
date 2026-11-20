@@ -37,3 +37,13 @@ test('Arranque: fallo de conexión y puerto ocupado terminan sin filtrar secreto
     assert.match(child.stderr,mode==='occupied'?/puerto configurado está ocupado/:/No se pudo iniciar/);
   }
 });
+
+test('Configuración: LOG_LEVEL opcional, defaults por entorno y validación sin valores', () => {
+  for (const NODE_ENV of ['development', 'test', 'production']) {
+    assert.equal(validateEnv({ ...good, NODE_ENV }).logLevel, NODE_ENV === 'production' ? 'info' : 'debug');
+    for (const LOG_LEVEL of ['debug', 'http', 'info', 'warning', 'error', 'fatal']) assert.equal(validateEnv({ ...good, NODE_ENV, LOG_LEVEL }).logLevel, LOG_LEVEL);
+  }
+  for (const LOG_LEVEL of ['', ' ', 'INFO', 'PRIVATE_TOKEN', null, 1]) {
+    assert.throws(() => validateEnv({ ...good, LOG_LEVEL }), error => /LOG_LEVEL/.test(error.message) && !error.message.includes('PRIVATE_TOKEN'));
+  }
+});

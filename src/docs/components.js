@@ -41,7 +41,7 @@ const schemas = {
   SeedUsersPayload: object({ inserted: { type: 'integer', minimum: 1, maximum: 100 }, users: array('User'), collection: { type: 'string', enum: ['users'] } }),
   BatchPayload: object({ insertados: ref('BatchCounts') }),
   LoggerResult: object({ status: { type: 'string', enum: ['success'] }, message: { type: 'string', enum: ['Logs de diagnóstico generados'] } }),
-  HealthResult: object({ status: { type: 'string', enum: ['ok'] }, timestamp: date }),
+  HealthResult: object({ status: { type: 'string', enum: ['ok'] }, environment: { type: 'string', enum: ['development', 'test', 'production'] }, uptime: { type: 'number', minimum: 0 }, timestamp: date }, undefined, { additionalProperties: false }),
 };
 for (const name of ['User', 'Order', 'Delivery']) {
   schemas[`${name}Result`] = { allOf: [ref('Success'), object({ payload: ref(name) })] };
@@ -77,7 +77,7 @@ errors('MockInputError', ['INVALID_MOCK_AMOUNT', 'INVALID_MOCK_DATA', 'INVALID_J
 errors('MockConflict', ['USER_ALREADY_EXISTS', 'DUPLICATE_KEY']);
 for (const code of ['USER_NOT_FOUND', 'ORDER_NOT_FOUND', 'DELIVERY_NOT_FOUND', 'USER_ALREADY_EXISTS', 'DUPLICATE_KEY', 'DATABASE_ERROR', 'ROUTE_NOT_FOUND', 'MOCK_DATABASE_FORBIDDEN', 'MOCK_GENERATION_ERROR', 'MOCK_TRANSACTIONS_REQUIRED', 'PAYLOAD_TOO_LARGE']) errors(code, [code]);
 const parameters = {
-  Page: { name: 'page', in: 'query', description: 'Página solicitada. No se aceptan parámetros repetidos.', schema: { type: 'integer', minimum: 1, default: 1 } },
+  Page: { name: 'page', in: 'query', description: 'Página solicitada. No se aceptan parámetros repetidos. (page - 1) * limit debe ser un entero seguro no negativo; de lo contrario devuelve 400 VALIDATION_ERROR.', schema: { type: 'integer', minimum: 1, default: 1 } },
   Limit: { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 100, default: 10 } },
   Qty: { name: 'qty', in: 'query', description: 'Entero decimal de 1 a 100, sin fracciones, signo ni parámetros repetidos.', schema: { type: 'integer', minimum: 1, maximum: 100, default: 10 } },
   SeedQty: { name: 'qty', in: 'query', required: true, description: 'Entero decimal obligatorio de 1 a 100; sin valor predeterminado.', schema: { type: 'integer', minimum: 1, maximum: 100 } },
