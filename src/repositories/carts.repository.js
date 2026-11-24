@@ -1,12 +1,25 @@
 const Cart = require('../models/Cart');
 const { persist, normalize } = require('./persistence');
-const PRODUCT_FIELDS = 'title description code price stock status category thumbnails createdAt updatedAt';
+const PRODUCT_FIELDS =
+  'title description code price stock status category thumbnails createdAt updatedAt';
 class CartsRepository {
-  createCart() { return persist(async () => normalize(await Cart.create({ products: [] }))); }
+  createCart() {
+    return persist(async () => normalize(await Cart.create({ products: [] })));
+  }
   getCartById(id) {
     return persist(async () => {
-      const cart = normalize(await Cart.findById(id).select('products createdAt updatedAt').populate({ path: 'products.product', select: PRODUCT_FIELDS }).lean());
-      if (cart) cart.products = cart.products.map(item => ({ ...item, _id: String(item._id), product: normalize(item.product) }));
+      const cart = normalize(
+        await Cart.findById(id)
+          .select('products createdAt updatedAt')
+          .populate({ path: 'products.product', select: PRODUCT_FIELDS })
+          .lean()
+      );
+      if (cart)
+        cart.products = cart.products.map(item => ({
+          ...item,
+          _id: String(item._id),
+          product: normalize(item.product),
+        }));
       return cart;
     });
   }
@@ -23,13 +36,21 @@ class CartsRepository {
   }
   removeProductFromCart(cartId, productId) {
     return persist(async () => {
-      const cart = await Cart.findByIdAndUpdate(cartId, { $pull: { products: { product: productId } } }, { returnDocument: 'after', runValidators: true });
+      const cart = await Cart.findByIdAndUpdate(
+        cartId,
+        { $pull: { products: { product: productId } } },
+        { returnDocument: 'after', runValidators: true }
+      );
       return cart ? this.getCartById(cartId) : null;
     });
   }
   updateCartProducts(cartId, products) {
     return persist(async () => {
-      const cart = await Cart.findByIdAndUpdate(cartId, { $set: { products } }, { returnDocument: 'after', runValidators: true });
+      const cart = await Cart.findByIdAndUpdate(
+        cartId,
+        { $set: { products } },
+        { returnDocument: 'after', runValidators: true }
+      );
       return cart ? this.getCartById(cartId) : null;
     });
   }
@@ -44,6 +65,8 @@ class CartsRepository {
       return this.getCartById(cartId);
     });
   }
-  clearCart(cartId) { return this.updateCartProducts(cartId, []); }
+  clearCart(cartId) {
+    return this.updateCartProducts(cartId, []);
+  }
 }
 module.exports = CartsRepository;

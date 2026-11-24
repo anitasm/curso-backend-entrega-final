@@ -10,6 +10,8 @@
 | `npm.cmd test` | Las tres suites, sin omitir integración si Docker no está disponible |
 | `npm.cmd run verify:compose` | Stack de producción nuevo: salud, persistencia, recreación, imagen y cierre |
 
+`verify:compose` crea un proyecto de revisión propio, detiene sus contenedores al finalizar y conserva sus volúmenes; muestra el nombre generado para identificarlos.
+
 La matriz funcional exige comprobar cada estado HTTP documentado en OpenAPI. Los errores de controlador también se prueban mediante dobles explícitos; eso no se presenta como evidencia de persistencia. La integración comprueba escrituras reales, rollback después de escribir, carreras entre operaciones incompatibles, perfiles referenciados, archivos y guards de mocks.
 
 En Windows una prueba de SIGTERM se omite por la semántica de señales del sistema. El cierre real del contenedor Linux se verifica con Compose.
@@ -55,7 +57,7 @@ La referencia path devuelta es privada: no es una URL de descarga. Los GET norma
 
 ## Logs y mocks
 
-Usar el proyecto separado shipnow-demo del README. GET /loggerTest genera seis niveles; el fatal es simulado y no apaga la API. error.log contiene solo error/fatal y combined.log respeta el umbral. En el proyecto de producción las rutas internas deben devolver 404.
+Usar el proyecto separado shipnow-demo descrito en [Operación y desarrollo](operations.md#desarrollo-local). GET /loggerTest genera seis niveles; el fatal es simulado y no apaga la API. error.log contiene solo error/fatal y combined.log respeta el umbral. En el proyecto de producción las rutas internas deben devolver 404.
 
 Los POST de mocks agregan datos nuevos; no reinician ni limpian la base. La generación de lotes se realiza en una transacción. Un lote con users=1, drivers=1, orders=1 y deliveries=1 permite comprobar referencias sin datos reales.
 

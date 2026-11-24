@@ -2,10 +2,13 @@ const Product = require('../models/Product');
 const { CATALOG_SNAPSHOT_LIMIT } = require('../config/performance.config');
 const { normalize, persist: execute } = require('./persistence');
 const persist = operation => execute(operation, { entity: 'products' });
-const PUBLIC_FIELDS = 'title description code price stock status category thumbnails createdAt updatedAt';
+const PUBLIC_FIELDS =
+  'title description code price stock status category thumbnails createdAt updatedAt';
 const escapeRegex = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 class ProductsRepository {
-  initialize() { return persist(() => Product.init()); }
+  initialize() {
+    return persist(() => Product.init());
+  }
   getProducts({ page = 1, limit = 10, sort, query, paginate = true } = {}) {
     return persist(async () => {
       const filter = {};
@@ -14,16 +17,48 @@ class ProductsRepository {
       const order = sort ? { price: sort === 'asc' ? 1 : -1, _id: 1 } : { createdAt: -1, _id: 1 };
       if (!paginate) {
         // Defend the DB boundary too: zero/negative/unsafe values must never remove the limit.
-        const snapshotLimit = Number.isSafeInteger(limit) && limit > 0 ? Math.min(limit, CATALOG_SNAPSHOT_LIMIT) : CATALOG_SNAPSHOT_LIMIT;
-        return (await Product.find(filter).select(PUBLIC_FIELDS).sort(order).limit(snapshotLimit).lean()).map(normalize);
+        const snapshotLimit =
+          Number.isSafeInteger(limit) && limit > 0
+            ? Math.min(limit, CATALOG_SNAPSHOT_LIMIT)
+            : CATALOG_SNAPSHOT_LIMIT;
+        return (
+          await Product.find(filter).select(PUBLIC_FIELDS).sort(order).limit(snapshotLimit).lean()
+        ).map(normalize);
       }
-      const result = await Product.paginate(filter, { page, limit, sort: order, select: PUBLIC_FIELDS, lean: true, leanWithId: false });
+      const result = await Product.paginate(filter, {
+        page,
+        limit,
+        sort: order,
+        select: PUBLIC_FIELDS,
+        lean: true,
+        leanWithId: false,
+      });
       return { ...result, docs: result.docs.map(normalize) };
     });
   }
-  getProductById(id) { return persist(async () => normalize(await Product.findById(id).select(PUBLIC_FIELDS).lean())); }
-  createProduct(data) { return persist(async () => normalize(await Product.create(data))); }
-  updateProduct(id, data) { return persist(async () => normalize(await Product.findByIdAndUpdate(id, { $set: data }, { returnDocument: 'after', runValidators: true }).select(PUBLIC_FIELDS).lean())); }
-  deleteProduct(id) { return persist(async () => normalize(await Product.findByIdAndDelete(id).select(PUBLIC_FIELDS).lean())); }
+  getProductById(id) {
+    return persist(async () => normalize(await Product.findById(id).select(PUBLIC_FIELDS).lean()));
+  }
+  createProduct(data) {
+    return persist(async () => normalize(await Product.create(data)));
+  }
+  updateProduct(id, data) {
+    return persist(async () =>
+      normalize(
+        await Product.findByIdAndUpdate(
+          id,
+          { $set: data },
+          { returnDocument: 'after', runValidators: true }
+        )
+          .select(PUBLIC_FIELDS)
+          .lean()
+      )
+    );
+  }
+  deleteProduct(id) {
+    return persist(async () =>
+      normalize(await Product.findByIdAndDelete(id).select(PUBLIC_FIELDS).lean())
+    );
+  }
 }
 module.exports = ProductsRepository;

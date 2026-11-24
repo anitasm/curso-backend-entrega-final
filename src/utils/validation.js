@@ -1,21 +1,30 @@
 const AppError = require('../errors/AppError');
-const invalid = (message, code = 'VALIDATION_ERROR') => { throw new AppError(code, { message }); };
+const invalid = (message, code = 'VALIDATION_ERROR') => {
+  throw new AppError(code, { message });
+};
 const id = value => {
   if (typeof value !== 'string' || !/^[a-f\d]{24}$/i.test(value)) invalid(undefined, 'INVALID_ID');
   return value;
 };
 const fields = (input, allowed, code = 'VALIDATION_ERROR') => {
-  if (!input || typeof input !== 'object' || Array.isArray(input)) invalid('Se requiere un objeto', code);
-  for (const key of Object.keys(input)) if (!allowed.includes(key)) invalid('Campo no permitido', code);
+  if (!input || typeof input !== 'object' || Array.isArray(input))
+    invalid('Se requiere un objeto', code);
+  for (const key of Object.keys(input))
+    if (!allowed.includes(key)) invalid('Campo no permitido', code);
 };
 const string = (value, name) => {
   if (typeof value !== 'string' || !value.trim()) invalid(name + ' debe ser texto no vacío');
   return value.trim();
 };
 const number = (value, name, integer = false, min = 0) => {
-  if (typeof value !== 'number' && !(typeof value === 'string' && /^\d+(?:\.\d+)?$/.test(value.trim()))) invalid(name + ' inválido');
+  if (
+    typeof value !== 'number' &&
+    !(typeof value === 'string' && /^\d+(?:\.\d+)?$/.test(value.trim()))
+  )
+    invalid(name + ' inválido');
   const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < min || (integer && !Number.isSafeInteger(parsed))) invalid(name + ' inválido');
+  if (!Number.isFinite(parsed) || parsed < min || (integer && !Number.isSafeInteger(parsed)))
+    invalid(name + ' inválido');
   return parsed;
 };
 const pagination = (input = {}) => {
@@ -23,7 +32,8 @@ const pagination = (input = {}) => {
   const limit = input.limit === undefined ? 10 : number(input.limit, 'limit', true, 1);
   if (limit > 100) invalid('limit no puede superar 100');
   const offset = (page - 1) * limit;
-  if (!Number.isSafeInteger(offset) || offset < 0) invalid('El desplazamiento de paginación debe ser un entero seguro');
+  if (!Number.isSafeInteger(offset) || offset < 0)
+    invalid('El desplazamiento de paginación debe ser un entero seguro');
   return { page, limit };
 };
 const found = (value, code) => {
