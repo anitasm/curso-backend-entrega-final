@@ -23,7 +23,7 @@ class ProductsRepository {
   }
   getProductById(id) { return persist(async () => normalize(await Product.findById(id).select(PUBLIC_FIELDS).lean())); }
   createProduct(data) { return persist(async () => normalize(await Product.create(data))); }
-  updateProduct(id, data) { return persist(async () => normalize(await Product.findByIdAndUpdate(id, { $set: data }, { new: true, runValidators: true }).select(PUBLIC_FIELDS).lean())); }
+  updateProduct(id, data) { return persist(async () => normalize(await Product.findByIdAndUpdate(id, { $set: data }, { returnDocument: 'after', runValidators: true }).select(PUBLIC_FIELDS).lean())); }
   deleteProduct(id) { return persist(async () => normalize(await Product.findByIdAndDelete(id).select(PUBLIC_FIELDS).lean())); }
 }
 module.exports = ProductsRepository;

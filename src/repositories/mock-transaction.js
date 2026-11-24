@@ -3,9 +3,9 @@ const AppError = require('../errors/AppError');
 const { persist } = require('./persistence');
 const { MOCK_DATABASE_NAME } = require('../config/mocks.config');
 
-function createMockPersistence(connection = mongoose.connection) {
+function createMockPersistence(connection = mongoose.connection, { nodeEnv = 'development' } = {}) {
   function assertMockDatabase() {
-    if (connection.readyState !== 1 || connection.db?.databaseName !== MOCK_DATABASE_NAME) {
+    if (connection.readyState !== 1 || connection.db?.databaseName !== (nodeEnv === 'test' ? 'shipnow_test' : MOCK_DATABASE_NAME) || !['development', 'test'].includes(nodeEnv)) {
       throw new AppError('MOCK_DATABASE_FORBIDDEN');
     }
   }

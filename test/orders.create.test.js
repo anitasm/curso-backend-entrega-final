@@ -17,7 +17,9 @@ test('Alta de pedido: repositorio usa el modelo, conserva timestamps y normaliza
   });
   const data = { ...input(), total: 251, status: 'created', priority: 'normal' };
   const row = await new Repository().create(data);
-  assert.deepEqual(received, data);
+  assert.deepEqual(received, { ...data, history: [{ status: 'created', timestamp: received.history[0].timestamp, source: 'actual' }], historyComplete: true });
+  assert.ok(received.history[0].timestamp instanceof Date);
+  assert.equal(row.history, undefined);
   assert.equal(row._id, id); assert.equal(row.id, id);
   assert.equal(row.createdAt.toISOString(), now.toISOString()); assert.equal(row.updatedAt.toISOString(), now.toISOString());
   assert.equal(row.total, 251); assert.equal(row.status, 'created');

@@ -19,7 +19,7 @@ test('Arranque aislado: valores vacíos o inválidos impiden conectar y escuchar
     // Explicit empty sentinels cannot be replaced by the real local .env (override:false).
     const code='require('+JSON.stringify(server)+').startServer({loggerFactory: o => require('+JSON.stringify(path.resolve(__dirname,'../src/utils/logger.js'))+').createLogger({...o,file:false})});';
     const child=spawnSync(process.execPath,['-e',code],{env:{...process.env,...good,...patch},encoding:'utf8',timeout:5000});
-    assert.equal(child.status,1,child.stderr);assert.match(child.stderr,/Configuración inválida/);assert.doesNotMatch(child.stdout,/escuchando/);
+    assert.equal(child.status,1,child.stderr);assert.match(child.stderr,/No hay destinos de logs disponibles/);assert.doesNotMatch(child.stdout,/escuchando/);
     assert.doesNotMatch(child.stderr,/mongodb:\/\/localhost/);
   }
 });
@@ -34,7 +34,7 @@ test('Arranque: fallo de conexión y puerto ocupado terminan sin filtrar secreto
   for(const mode of ['connection','occupied']) {
     const child=spawnSync(process.execPath,[path.resolve(__dirname,'helpers/startup-child.js'),mode],{env:{...process.env,...good},encoding:'utf8',timeout:5000});
     assert.equal(child.status,1,child.stderr);assert.doesNotMatch(child.stderr,/private|secret|example.test/);
-    assert.match(child.stderr,mode==='occupied'?/puerto configurado está ocupado/:/No se pudo iniciar/);
+    assert.match(child.stderr,mode==='occupied'?/STARTUP_PORT_IN_USE/:/STARTUP_DATABASE_ERROR/);
   }
 });
 

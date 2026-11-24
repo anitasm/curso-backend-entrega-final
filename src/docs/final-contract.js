@@ -1,0 +1,73 @@
+const dictionary = require('../errors/error-dictionary');
+const { ORDER_STATUS, DELIVERY_PRIORITY } = require('../constants');
+const ref = name => ({ $ref: '#/components/schemas/' + name });
+const obj = (properties, required = Object.keys(properties), extra = {}) => ({ type: 'object', properties, ...(required.length ? { required } : {}), additionalProperties: false, ...extra });
+const text = { type: 'string', minLength: 1 };
+const headers = { 'X-Request-Id': { $ref: '#/components/headers/RequestId' } };
+function errors(codes) {
+  const result = {};
+  for (const code of codes) {
+    const item = dictionary[code];
+    result[item.status] ||= { description: 'Error público; las validaciones pueden incluir un mensaje contextual.', headers, content: { 'application/json': { schema: ref('ErrorResponse'), examples: {} } } };
+    result[item.status].content['application/json'].examples[code] = { value: { status: 'error', error: code, message: item.message } };
+  }
+  return result;
+}
+const success = schema => ({ description: 'Operación completada', headers, content: { 'application/json': { schema: ref(schema) } } });
+module.exports = spec => {
+  const s = spec.components.schemas;
+  s.UserCreate.properties.role = { type: 'string', enum: ['user', 'driver'], default: 'user' };
+  s.UserCreate.description = 'Perfil ficticio; role opcional e inmutable. No acepta admin, contraseñas ni campos adicionales.';
+  s.OrderItemInput.properties.name.maxLength = 200;
+  s.OrderCreate.properties.items.maxItems = 100; s.OrderCreate.properties.deliveryAddress.maxLength = 500;
+  s.OrderUpdate = obj({ items: s.OrderCreate.properties.items, deliveryAddress: s.OrderCreate.properties.deliveryAddress, priority: s.OrderCreate.properties.priority }, [], { minProperties: 1 });
+  s.OrderStatusChange = obj({ status: { type: 'string', enum: Object.values(ORDER_STATUS) } });
+  s.OrderDeleteResult = obj({ status: { type: 'string', enum: ['success'] }, payload: obj({ id: ref('Id'), deleted: { type: 'boolean', enum: [true] } }) });
+  s.OrderTrackingResult = obj({ status: { type: 'string', enum: ['success'] }, payload: obj({ orderId: ref('Id'), status: { type: 'string', enum: Object.values(ORDER_STATUS) }, historyComplete: { type: 'boolean' }, history: { type: 'array', maxItems: 6, items: obj({ status: { type: 'string', enum: Object.values(ORDER_STATUS) }, timestamp: { type: 'string', format: 'date-time' }, source: { type: 'string', enum: ['actual', 'synthetic', 'observed'] } }, ['status', 'timestamp']) } }) });
+  s.DeliveryCreate = obj({ order: ref('Id'), driver: ref('Id') }, ['order']);
+  s.DeliveryAssign = obj({ driver: ref('Id') });
+  s.ProductInput = obj({ title: text, description: text, price: { type: 'number', minimum: 0 }, stock: { type: 'integer', minimum: 0 }, category: text, status: { type: 'boolean', default: true }, thumbnails: { type: 'array', items: text } }, ['title', 'description', 'price', 'stock', 'category']);
+  s.ProductUpdate = { ...s.ProductInput, minProperties: 1 }; delete s.ProductUpdate.required;
+  s.Product = { allOf: [ref('Persistence'), { type: 'object', properties: { ...s.ProductInput.properties, code: text, availability: text }, required: ['title', 'price', 'stock', 'code'] }] };
+  s.CartItem = obj({ product: ref('Id'), quantity: { type: 'integer', minimum: 1 } });
+  s.CartReplace = { oneOf: [{ type: 'array', items: ref('CartItem') }, obj({ products: { type: 'array', items: ref('CartItem') } })] };
+  s.Cart = { type: 'object', properties: { id: ref('Id'), _id: ref('Id'), products: { type: 'array', items: { type: 'object', properties: { product: { oneOf: [ref('Id'), ref('Product')], nullable: true }, quantity: { type: 'integer' } } } } } };
+  for (const name of ['Product', 'Cart']) s[name + 'Result'] = { allOf: [ref('Success'), { type: 'object', properties: { payload: ref(name) }, required: ['payload'] }] };
+  s.ProductPage = { allOf: [ref('Success'), ref('Pagination'), { type: 'object', properties: { payload: { type: 'array', items: ref('Product') } }, required: ['payload'] }] };
+  const add = (route, method, tag, operationId, summary, schema, result, codes, status = 200, description = '') => {
+    const parameters = [...route.matchAll(/\{([^}]+)\}/g)].map(m => ({ in: 'path', name: m[1], required: true, schema: ref('Id') }));
+    const operation = { tags: [tag], operationId, summary, description, parameters, responses: { [status]: success(result), ...errors(codes) } };
+    if (schema) operation.requestBody = { required: true, content: { 'application/json': { schema: ref(schema) } } };
+    spec.paths[route] ||= {}; spec.paths[route][method] = operation;
+  };
+  const read = ['INVALID_ID', 'ORDER_NOT_FOUND', 'DATABASE_ERROR'];
+  const mutation = [...read, 'VALIDATION_ERROR', 'INVALID_JSON', 'PAYLOAD_TOO_LARGE', 'ORDER_CONCURRENT_MODIFICATION', 'TRANSACTIONS_REQUIRED'];
+  add('/api/orders/{oid}', 'put', 'Orders', 'updateOrder', 'Editar pedido created', 'OrderUpdate', 'OrderResult', [...mutation, 'ORDER_NOT_EDITABLE'], 200, 'Actualización parcial no vacía. customer y status son inmutables por esta ruta. El total se recalcula junto a los items dentro de la transacción.');
+  add('/api/orders/{oid}', 'delete', 'Orders', 'deleteOrder', 'Dar de baja un pedido created sin entrega', null, 'OrderDeleteResult', [...read, 'ORDER_NOT_DELETABLE', 'ORDER_CONCURRENT_MODIFICATION', 'TRANSACTIONS_REQUIRED'], 200, 'Baja lógica. Después responde 404 en consultas y mutaciones; conserva referencias históricas.');
+  add('/api/orders/{oid}/status', 'patch', 'Orders', 'transitionOrder', 'Cambiar estado del envío', 'OrderStatusChange', 'OrderResult', [...mutation, 'INVALID_ORDER_STATUS', 'INVALID_ORDER_TRANSITION', 'INVALID_DRIVER_ROLE', 'USER_NOT_FOUND'], 200, 'created → assigned o cancelled; assigned → picked_up o cancelled; picked_up → in_transit; in_transit → delivered. delivered y cancelled son terminales. Repetir el estado actual es idempotente. assigned exige una entrega con conductor válido.');
+  add('/api/orders/{oid}/tracking', 'get', 'Orders', 'trackOrder', 'Consultar seguimiento del envío', null, 'OrderTrackingResult', read, 200, 'Solo estado e historial. No expone dirección, datos personales ni archivos. Los documentos anteriores y mocks sin historial se devuelven con historyComplete=false, sin inventar eventos.');
+  const deliveryErrors = ['INVALID_ID', 'VALIDATION_ERROR', 'INVALID_JSON', 'INVALID_DRIVER_ROLE', 'USER_NOT_FOUND', 'ORDER_NOT_FOUND', 'DELIVERY_ALREADY_EXISTS', 'INVALID_DELIVERY_ASSIGNMENT', 'ORDER_CONCURRENT_MODIFICATION', 'DATABASE_ERROR', 'PAYLOAD_TOO_LARGE', 'TRANSACTIONS_REQUIRED'];
+  add('/api/deliveries', 'post', 'Deliveries', 'createDelivery', 'Crear entrega para pedido created', 'DeliveryCreate', 'DeliveryResult', deliveryErrors, 201, 'Una entrega por pedido. Sin driver queda pending y el pedido created; con driver ambos quedan assigned en una transacción.');
+  add('/api/deliveries/{did}/driver', 'patch', 'Deliveries', 'assignDriver', 'Asignar conductor a entrega pendiente', 'DeliveryAssign', 'DeliveryResult', [...deliveryErrors.filter(c => c !== 'DELIVERY_ALREADY_EXISTS'), 'DELIVERY_NOT_FOUND'], 200, 'Solo una entrega pending de un pedido created. El perfil debe tener rol driver; no permite reasignación.');
+  spec.paths['/api/orders'].post.responses['503'] = errors(['TRANSACTIONS_REQUIRED'])['503'];
+  Object.assign(spec.paths['/api/users/{uid}'].delete.responses, errors(['USER_IN_USE', 'TRANSACTIONS_REQUIRED']));
+  const productErrors = ['VALIDATION_ERROR', 'INVALID_ID', 'PRODUCT_NOT_FOUND', 'DATABASE_ERROR'];
+  add('/api/products', 'get', 'Products', 'listProducts', 'Listar catálogo', null, 'ProductPage', ['VALIDATION_ERROR', 'DATABASE_ERROR']);
+  spec.paths['/api/products'].get.parameters = [{ $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/Limit' }, { in: 'query', name: 'sort', schema: { type: 'string', enum: ['asc', 'desc'] } }, { in: 'query', name: 'query', schema: text, description: 'Categoría, true o false para disponibilidad.' }];
+  add('/api/products', 'post', 'Products', 'createProduct', 'Crear producto', 'ProductInput', 'ProductResult', ['VALIDATION_ERROR', 'INVALID_JSON', 'UPLOAD_ERROR', 'DUPLICATE_CODE', 'DATABASE_ERROR', 'PAYLOAD_TOO_LARGE'], 201, 'code generado por el servidor. JSON o formulario multipart con image opcional (imagen de catálogo de hasta 2 MiB).');
+  spec.paths['/api/products'].post.requestBody.content['multipart/form-data'] = { schema: { ...s.ProductInput, properties: { ...s.ProductInput.properties, image: { type: 'string', format: 'binary' } } } };
+  add('/api/products/{pid}', 'get', 'Products', 'getProduct', 'Consultar producto', null, 'ProductResult', ['INVALID_ID', 'PRODUCT_NOT_FOUND', 'DATABASE_ERROR']);
+  add('/api/products/{pid}', 'put', 'Products', 'updateProduct', 'Editar producto', 'ProductUpdate', 'ProductResult', [...productErrors, 'INVALID_JSON', 'PAYLOAD_TOO_LARGE']);
+  add('/api/products/{pid}', 'delete', 'Products', 'deleteProduct', 'Eliminar producto', null, 'ProductResult', ['INVALID_ID', 'PRODUCT_NOT_FOUND', 'DATABASE_ERROR']);
+  add('/api/carts', 'post', 'Carts', 'createCart', 'Crear carrito vacío', null, 'CartResult', ['DATABASE_ERROR'], 201);
+  const cartErrors = ['INVALID_ID', 'CART_NOT_FOUND', 'DATABASE_ERROR'];
+  add('/api/carts/{cid}', 'get', 'Carts', 'getCart', 'Consultar carrito con productos', null, 'CartResult', cartErrors);
+  add('/api/carts/{cid}', 'put', 'Carts', 'replaceCart', 'Reemplazar productos del carrito', 'CartReplace', 'CartResult', [...cartErrors, 'VALIDATION_ERROR', 'INVALID_JSON', 'PAYLOAD_TOO_LARGE']);
+  add('/api/carts/{cid}', 'delete', 'Carts', 'clearCart', 'Vaciar carrito', null, 'CartResult', cartErrors);
+  add('/api/carts/{cid}/product/{pid}', 'post', 'Carts', 'addCartProduct', 'Agregar una unidad del producto', null, 'CartResult', [...cartErrors, 'PRODUCT_NOT_FOUND']);
+  add('/api/carts/{cid}/products/{pid}', 'delete', 'Carts', 'removeCartProduct', 'Quitar producto del carrito', null, 'CartResult', cartErrors);
+  s.CartQuantity = obj({ quantity: { type: 'integer', minimum: 1 } });
+  add('/api/carts/{cid}/products/{pid}', 'put', 'Carts', 'setCartQuantity', 'Cambiar cantidad del producto', 'CartQuantity', 'CartResult', [...cartErrors, 'CART_ITEM_NOT_FOUND', 'VALIDATION_ERROR', 'INVALID_JSON', 'PAYLOAD_TOO_LARGE']);
+  spec.tags.push({ name: 'Products' }, { name: 'Carts' });
+  spec.info.description = 'API de catálogo, perfiles ficticios, pedidos y entregas. Order representa el pedido/envío; Delivery representa su asignación operativa y comprobantes. Sin autenticación: destinada a demostración local con datos ficticios. Mocks y diagnóstico de logs devuelven 404 en producción. Las escrituras desde Swagger son reales.';
+};

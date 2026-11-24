@@ -9,8 +9,6 @@ node_modules
 logs
 uploads
 src/public/img/uploads
-test
-tests
 postman
 docs
 coverage

@@ -2,16 +2,16 @@
 // This file is outside the default npm test glob and requires real MongoDB.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { loadConfig } = require('../../src/config/env.config');
 const { connectDB, disconnectDB } = require('../../src/config/db');
 const createMockPersistence = require('../../src/repositories/mock-transaction');
 
 test('MongoDB real: revierte todo el lote ante un fallo posterior a la última inserción', { timeout: 60000 }, async () => {
-  const config = loadConfig();
-  assert.notEqual(config.nodeEnv, 'production', 'Ejecutar solo en development o test');
+  const mongoUri = process.env.TEST_MONGODB_URI;
+  assert.ok(mongoUri, 'Requiere TEST_MONGODB_URI explícita; nunca utiliza .env');
+  assert.equal(new URL(mongoUri).pathname, '/shipnow_test');
   try {
-    await connectDB(config.mongoUri);
-    const infrastructure = createMockPersistence();
+    await connectDB(mongoUri);
+    const infrastructure = createMockPersistence(undefined, { nodeEnv: 'test' });
     // Verify the active database before loading models or initializing collections.
     infrastructure.assertMockDatabase();
     const UsersRepository = require('../../src/repositories/users.repository');

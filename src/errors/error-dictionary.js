@@ -1,5 +1,14 @@
 const { MOCK_DATABASE_NAME } = require('../config/mocks.config');
 const definitions = {
+  ORDER_NOT_EDITABLE: [409, 'Solo se puede editar un pedido en estado created'],
+  ORDER_NOT_DELETABLE: [409, 'Solo se puede dar de baja un pedido created sin entrega'],
+  INVALID_ORDER_TRANSITION: [409, 'Transición de pedido incompatible con el estado actual'],
+  ORDER_CONCURRENT_MODIFICATION: [409, 'El pedido cambió durante la operación; volver a consultar'],
+  DELIVERY_ALREADY_EXISTS: [409, 'Ya existe una entrega para el pedido'],
+  INVALID_DELIVERY_ASSIGNMENT: [409, 'La entrega no admite esta asignación'],
+  INVALID_DRIVER_ROLE: [400, 'El perfil debe tener rol driver'],
+  USER_IN_USE: [409, 'El perfil está referenciado por pedidos o entregas'],
+  TRANSACTIONS_REQUIRED: [503, 'Esta operación requiere un replica set de MongoDB'],
   FILE_REQUIRED: [400, 'Se requiere un archivo'],
   INVALID_UPLOAD_FIELD: [400, 'Campos o cantidad de archivos no permitidos'],
   INVALID_MULTIPART: [400, 'Formulario multipart inválido'],

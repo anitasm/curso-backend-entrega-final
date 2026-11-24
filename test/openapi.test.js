@@ -97,9 +97,12 @@ test('OpenAPI: validación completa, refs internas, inventario exacto y ejemplos
   const expected = {
     '/api/users/{uid}/documents': ['post'], '/api/deliveries/{did}/proof': ['post'],
     '/api/users': ['get', 'post'], '/api/users/{uid}': ['get', 'put', 'delete'],
-    '/api/orders': ['get', 'post'], '/api/orders/{oid}': ['get'], '/api/deliveries': ['get'], '/api/deliveries/{did}': ['get'],
+    '/api/orders': ['get', 'post'], '/api/orders/{oid}': ['get', 'put', 'delete'], '/api/deliveries': ['get', 'post'], '/api/deliveries/{did}': ['get'],
     '/api/mocks/users': ['get', 'post'], '/api/mocks/mockingusers': ['get'], '/api/mocks/mockingdrivers': ['get'],
     '/api/mocks/mockingorders': ['get'], '/api/mocks/mockingdeliveries': ['get'], '/api/mocks/seed': ['post'], '/api/mocks/generateData': ['post'],
+    '/api/orders/{oid}/status': ['patch'], '/api/orders/{oid}/tracking': ['get'], '/api/deliveries/{did}/driver': ['patch'],
+    '/api/products': ['get', 'post'], '/api/products/{pid}': ['get', 'put', 'delete'],
+    '/api/carts': ['post'], '/api/carts/{cid}': ['get', 'put', 'delete'], '/api/carts/{cid}/product/{pid}': ['post'], '/api/carts/{cid}/products/{pid}': ['put', 'delete'],
     '/loggerTest': ['get'], '/api/health': ['get'],
   };
   assert.deepEqual(Object.keys(spec.paths).sort(), Object.keys(expected).sort());
@@ -126,12 +129,12 @@ test('OpenAPI: validación completa, refs internas, inventario exacto y ejemplos
       }
     }
   }
-  assert.equal(ids.length, 22); assert.equal(new Set(ids).size, 22);
+  assert.equal(ids.length, 40); assert.equal(new Set(ids).size, 40);
   const walk = node => { if (!node || typeof node !== 'object') return; if (node.$ref) assert.ok(node.$ref.startsWith('#/components/')); Object.values(node).forEach(walk); };
   walk(spec);
 });
 
-test('OpenAPI: las 22 operaciones responden con los contratos documentados', async t => {
+test('OpenAPI: las operaciones base responden con los contratos documentados', async t => {
   const api = await setup(t);
   const input = { firstName: 'Alex', lastName: 'Ejemplo', email: 'alex@example.test' };
   const created = await api.request('/api/users', 'POST', input);
@@ -215,7 +218,7 @@ test('OpenAPI se resuelve desde otro cwd y no importa modelos ni secretos', () =
   const code = `
     const fs=require('node:fs'); fs.createWriteStream=()=>{throw Error('log prohibido')};
     const get=require(${JSON.stringify(modulePath)}); const s=get();
-    if(s.openapi!=='3.0.3'||Object.keys(s.paths).length!==17)process.exitCode=2;
+    if(s.openapi!=='3.0.3'||Object.keys(s.paths).length!==26)process.exitCode=2;
     const server=require('node:http').createServer(require(${JSON.stringify(appPath)})());
     server.listen(0,'127.0.0.1',async()=>{
       try {

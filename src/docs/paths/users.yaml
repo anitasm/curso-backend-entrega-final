@@ -47,7 +47,7 @@ paths:
         - "Users"
       operationId: "createUser"
       summary: "Crear perfil"
-      description: "Asigna role=user. No acepta role, password, IDs ni otros campos extra. Los textos se recortan y email se normaliza a minúsculas."
+      description: "Acepta role=user o driver; si se omite, asigna user. No acepta admin, password, IDs ni otros campos extra. Los textos se recortan y email se normaliza a minúsculas."
       requestBody:
         required: true
         content:

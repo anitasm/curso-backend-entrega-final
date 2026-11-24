@@ -5,14 +5,18 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "test": "npm run test:regression && npm run test:functional",
+    "test": "npm run test:fast && npm run test:integration",
     "test:regression": "node --test test/*.test.js",
-    "test:functional": "mocha --require ./tests/support/preload.cjs \"tests/functional/**/*.test.mjs\""
+    "test:functional": "mocha --require ./tests/support/preload.cjs \"tests/functional/**/*.test.mjs\"",
+    "test:fast": "npm run test:regression && npm run test:functional",
+    "test:integration": "node scripts/run-integration.js",
+    "test:integration:inside": "mocha --timeout 30000 \"tests/integration/**/*.test.cjs\"",
+    "verify:compose": "node scripts/verify-compose.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "ShipNow: catálogo y perfiles académicos; Rina como tienda de ejemplo",
+  "description": "ShipNow / Rina: gestión de pedidos, entregas y catálogo",
   "dependencies": {
     "dotenv": "^17.3.1",
     "express": "^4.22.1",
@@ -23,14 +27,16 @@
     "socket.io": "^4.8.3",
     "swagger-jsdoc": "^6.3.0",
     "swagger-ui-express": "^5.0.1",
-    "winston": "^3.19.0",
-    "winston-daily-rotate-file": "^5.0.0"
+    "winston": "^3.19.0"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^13.1.0",
     "chai": "^6.3.0",
-    "mocha": "^11.8.0",
+    "mocha": "^12.0.3",
     "nodemon": "^3.1.14",
     "supertest": "^7.3.2"
+  },
+  "engines": {
+    "node": ">=22.22.2"
   }
 }

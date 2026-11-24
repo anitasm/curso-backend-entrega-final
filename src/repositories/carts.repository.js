@@ -23,13 +23,13 @@ class CartsRepository {
   }
   removeProductFromCart(cartId, productId) {
     return persist(async () => {
-      const cart = await Cart.findByIdAndUpdate(cartId, { $pull: { products: { product: productId } } }, { new: true, runValidators: true });
+      const cart = await Cart.findByIdAndUpdate(cartId, { $pull: { products: { product: productId } } }, { returnDocument: 'after', runValidators: true });
       return cart ? this.getCartById(cartId) : null;
     });
   }
   updateCartProducts(cartId, products) {
     return persist(async () => {
-      const cart = await Cart.findByIdAndUpdate(cartId, { $set: { products } }, { new: true, runValidators: true });
+      const cart = await Cart.findByIdAndUpdate(cartId, { $set: { products } }, { returnDocument: 'after', runValidators: true });
       return cart ? this.getCartById(cartId) : null;
     });
   }

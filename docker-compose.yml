@@ -1,0 +1,49 @@
+services:
+  mongo:
+    image: mongo:8.0.38
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    volumes:
+      - mongo-data:/data/db
+      - mongo-config:/data/configdb
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "quit(db.hello().isWritablePrimary ? 0 : 1)"]
+      interval: 3s
+      timeout: 5s
+      retries: 40
+    stop_grace_period: 20s
+  mongo-init:
+    image: mongo:8.0.38
+    depends_on:
+      mongo:
+        condition: service_started
+    volumes:
+      - ./scripts/init-replica.js:/init-replica.js:ro
+    entrypoint: ["mongosh", "--nodb", "--quiet", "/init-replica.js"]
+    restart: "no"
+  api:
+    build:
+      context: .
+      target: runtime
+    environment:
+      NODE_ENV: production
+      PORT: "8080"
+      LOG_LEVEL: info
+      MONGODB_URI: mongodb://mongo:27017/shipnow_final?replicaSet=rs0
+    ports:
+      - "127.0.0.1:${COMPOSE_HTTP_PORT:-8082}:8080"
+    volumes:
+      - private-uploads:/app/uploads
+      - catalog-uploads:/app/src/public/img/uploads
+      - logs:/app/logs
+    depends_on:
+      mongo:
+        condition: service_healthy
+      mongo-init:
+        condition: service_completed_successfully
+    stop_grace_period: 20s
+volumes:
+  mongo-data:
+  mongo-config:
+  private-uploads:
+  catalog-uploads:
+  logs:

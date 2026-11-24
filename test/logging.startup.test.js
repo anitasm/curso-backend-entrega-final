@@ -20,14 +20,16 @@ test('Logging de arranque: fatal persistido una vez y cierre de recursos por eta
     });
     assert.equal(child.error, undefined);
     assert.equal(child.status, mode === 'success' ? 0 : 1, child.stderr);
-    const files = (await fs.readdir(dir)).filter(name => name.endsWith('.log'));
+    const files = ['error.log'];
     const lines = (await Promise.all(files.map(name => fs.readFile(path.join(dir, name), 'utf8')))).join('\n');
     const rows = lines.split(/\r?\n/).filter(Boolean).map(JSON.parse);
     assert.doesNotMatch(child.stdout + child.stderr + lines, /private|secret|example.test/);
     assert.equal(rows.length, code ? 1 : 0);
     if (code) { assert.equal(rows[0].level, 'fatal'); assert.equal(rows[0].code, code); }
-    assert.equal((child.stdout.match(/database.connected/g) || []).length, ['config', 'connection'].includes(mode) ? 0 : 1);
-    assert.equal((child.stdout.match(/server.started/g) || []).length, ['terminal', 'success'].includes(mode) ? 1 : 0);
+    const combined = await fs.readFile(path.join(dir, 'combined.log'), 'utf8');
+    assert.equal(child.stdout + child.stderr, '');
+    assert.equal((combined.match(/database.connected/g) || []).length, ['config', 'connection'].includes(mode) ? 0 : 1);
+    assert.equal((combined.match(/server.started/g) || []).length, ['terminal', 'success'].includes(mode) ? 1 : 0);
   }
 });
 

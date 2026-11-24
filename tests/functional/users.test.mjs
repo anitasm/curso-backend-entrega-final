@@ -36,7 +36,7 @@ describe('Users: API real con repositorios efímeros', () => {
     error(await api.get('/api/users?limit=101'), '/api/users', 'get', 'VALIDATION_ERROR', 'limit no puede superar 100');
     expect(f.calls).to.deep.equal([]);
   });
-  for (const [data, message] of [[{}, 'firstName debe ser texto no vacío'], [{ ...userInput, role: 'admin' }, 'Campo no permitido'], [{ ...userInput, password: 'x' }, 'Campo no permitido'], [{ ...userInput, email: 'bad' }, 'email inválido']]) {
+  for (const [data, message] of [[{}, 'firstName debe ser texto no vacío'], [{ ...userInput, role: 'admin' }, 'Rol de perfil inválido'], [{ ...userInput, password: 'x' }, 'Campo no permitido'], [{ ...userInput, email: 'bad' }, 'email inválido']]) {
     it('rechaza alta inválida: ' + JSON.stringify(data), async () => {
       error(await api.post('/api/users').send(data), '/api/users', 'post', 'VALIDATION_ERROR', message);
       expect(f.calls).to.deep.equal([]);

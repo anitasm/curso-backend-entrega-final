@@ -6,5 +6,7 @@ module.exports = (service, receive) => {
   router.get('/', c.list);
   router.post('/:did/proof', c.upload);
   router.get('/:did', c.get);
+  router.post('/', c.create);
+  router.patch('/:did/driver', c.assign);
   return router;
 };

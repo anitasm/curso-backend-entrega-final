@@ -37,27 +37,27 @@ async function startServer({ loggerFactory = createLogger, shutdownTimeoutMs } =
     const DeliveriesRepository = require('./repositories/deliveries.repository');
     const DeliveriesService = require('./services/deliveries.service');
     const deliveriesRepository = new DeliveriesRepository();
-    const deliveriesService = new DeliveriesService(deliveriesRepository);
+    const withTransaction = require('./repositories/unit-of-work')();
     const ordersRepository = new OrdersRepository();
     const usersRepository = new UsersRepository();
-    const ordersService = new OrdersService(ordersRepository, usersRepository);
+    const ordersService = new OrdersService(ordersRepository, usersRepository, { deliveriesRepository, withTransaction });
+    const deliveriesService = new DeliveriesService(deliveriesRepository, { ordersService, usersRepository, withTransaction });
     const productsService = new ProductsService(new ProductsRepository());
-    const usersService = new UsersService(usersRepository);
+    const usersService = new UsersService(usersRepository, { ordersRepository, deliveriesRepository, withTransaction });
     const cartsService = new CartsService(new CartsRepository(), productsService);
     stage = 'server.database_failed';
     connectionAttempted = true;
     await connectDB(config.mongoUri);
     logEvent('info', 'database.connected', { nodeEnv: config.nodeEnv }, logger);
     stage = 'server.prepare_failed';
-    await Promise.all([new ProductsRepository().initialize(), usersRepository.initialize()]);
+    await Promise.all([new ProductsRepository().initialize(), usersRepository.initialize(), ordersRepository.initialize(), deliveriesRepository.initialize()]);
     let mocksService;
     if (['development', 'test'].includes(config.nodeEnv)) {
       const MocksService = require('./services/mocks.service');
       const createMockPersistence = require('./repositories/mock-transaction');
-      await Promise.all([ordersRepository.initialize(), deliveriesRepository.initialize()]);
       mocksService = new MocksService({
         usersRepository, ordersRepository, deliveriesRepository,
-        ...createMockPersistence(), logger,
+        ...createMockPersistence(undefined, { nodeEnv: config.nodeEnv }), logger,
       });
     }
     const app = createApp({ productsService, usersService, cartsService, mocksService, ordersService, deliveriesService, nodeEnv: config.nodeEnv, logger });

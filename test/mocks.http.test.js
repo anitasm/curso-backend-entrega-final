@@ -111,7 +111,7 @@ test('HTTP mocks: falla final no responde éxito y Users conserva sus restriccio
   assert.deepEqual(failed.body, { status: 'error', error: 'MOCK_GENERATION_ERROR', message: 'No se pudo completar la generación de mocks' });
   assert.equal(f.committed(), false);
   const profile = { firstName: 'Test', lastName: 'Ejemplo', email: 'new@example.test' };
-  assert.equal((await f.request('/api/users', { method: 'POST', body: { ...profile, role: USER_ROLES.DRIVER } })).status, 400);
+  assert.equal((await f.request('/api/users', { method: 'POST', body: { ...profile, role: USER_ROLES.ADMIN } })).status, 400);
   const publicUser = await f.request('/api/users', { method: 'POST', body: profile });
   assert.equal(publicUser.status, 201);
   assert.equal(publicUser.body.payload.role, USER_ROLES.USER);

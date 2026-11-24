@@ -1,0 +1,32 @@
+services:
+  mongo:
+    image: mongo:8.0.38
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    tmpfs:
+      - /data/db
+      - /data/configdb
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "quit(db.hello().isWritablePrimary ? 0 : 1)"]
+      interval: 2s
+      timeout: 5s
+      retries: 45
+  mongo-init:
+    image: mongo:8.0.38
+    depends_on:
+      mongo:
+        condition: service_started
+    volumes:
+      - ./scripts/init-replica.js:/init-replica.js:ro
+    entrypoint: ["mongosh", "--nodb", "--quiet", "/init-replica.js"]
+  tests:
+    build:
+      context: .
+      target: test
+    environment:
+      NODE_ENV: test
+      TEST_MONGODB_URI: mongodb://mongo:27017/shipnow_test?replicaSet=rs0
+    depends_on:
+      mongo:
+        condition: service_healthy
+      mongo-init:
+        condition: service_completed_successfully

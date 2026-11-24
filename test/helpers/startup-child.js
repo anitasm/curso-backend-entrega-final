@@ -9,7 +9,7 @@ require('../../src/repositories/users.repository').prototype.initialize = async 
 require('../../src/repositories/orders.repository').prototype.initialize = async () => {};
 require('../../src/repositories/deliveries.repository').prototype.initialize = async () => {};
 const { startServer } = require('../../src/server');
-const loggerFactory = options => require('../../src/utils/logger').createLogger({ ...options, file: false });
+const loggerFactory = () => ({ log: (_level, _message, meta) => process.stderr.write(JSON.stringify(meta) + '\n'), shutdown: async () => {} });
 (async () => {
   if (mode === 'connection') { await startServer({ loggerFactory }); return; }
   const occupied = http.createServer();

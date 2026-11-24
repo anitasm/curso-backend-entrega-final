@@ -8,7 +8,7 @@ const schema = new mongoose.Schema({
   driver: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   status: {
     type: String, enum: Object.values(DELIVERY_STATUS), default: DELIVERY_STATUS.PENDING, required: true,
-    validate(value) { return value === (this.driver ? DELIVERY_STATUS.ASSIGNED : DELIVERY_STATUS.PENDING); },
+    validate(value) { return value === ((this.driver || this.get?.('driver')) ? DELIVERY_STATUS.ASSIGNED : DELIVERY_STATUS.PENDING); },
   },
 }, { timestamps: true, versionKey: false });
 

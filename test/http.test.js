@@ -57,7 +57,7 @@ test('HTTP Users: CRUD, normalización, duplicados, campos sensibles y roles',as
   assert.equal(created.status,201);const user=created.body.payload;
   assert.equal(user.role,'user');assert.equal(user.email,'ana@example.test');assert.equal(user.firstName,'Ana');
   assert.equal((await request('/api/users','POST',data)).status,409);
-  for(const extra of [{role:'admin'},{role:'user'},{password:'x'},{token:'x'},{email:'bad'}]) assert.equal((await request('/api/users','POST',{...data,...extra})).status,400);
+  for(const extra of [{role:'admin'},{role:'invalid'},{password:'x'},{token:'x'},{email:'bad'}]) assert.equal((await request('/api/users','POST',{...data,...extra})).status,400);
   assert.equal((await request('/api/users/'+user.id,'PUT',{role:'admin'})).status,400);
   assert.equal((await request('/api/users/'+user.id,'PUT',{})).status,400);
   assert.equal((await request('/api/users/'+user.id,'PUT',{lastName:'Cambio'})).body.payload.lastName,'Cambio');

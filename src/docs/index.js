@@ -17,6 +17,7 @@ module.exports = function getSpecification() {
       },
       apis: [path.join(__dirname, 'paths', '*.yaml').replace(/\\/g, '/')],
     });
+    require('./final-contract')(specification);
   }
   return specification;
 };

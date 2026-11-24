@@ -1,5 +1,8 @@
+const AppError = require('../errors/AppError');
 const { paginated } = require('../utils/presentation');
 module.exports = (service, receive) => ({
+  create: async (req, res, next) => { try { if (!req.is('application/json')) throw new AppError('VALIDATION_ERROR', { message: 'Se requiere un body JSON' }); res.status(201).json({ status: 'success', payload: await service.create(req.body) }); } catch (error) { next(error); } },
+  assign: async (req, res, next) => { try { if (!req.is('application/json')) throw new AppError('VALIDATION_ERROR', { message: 'Se requiere un body JSON' }); res.json({ status: 'success', payload: await service.assign(req.params.did, req.body) }); } catch (error) { next(error); } },
   upload: async (req, res, next) => {
     try {
       const id = req.params.did;

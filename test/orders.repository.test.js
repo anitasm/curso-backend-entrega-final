@@ -17,7 +17,7 @@ test('Pedidos: repositorio proyecta campos, filtra y pagina en orden estable', a
   t.mock.method(Order, 'countDocuments', async filter => { assert.deepEqual(filter, captured.filter); return 11; });
   const repository = new Repository();
   const result = await repository.list({ page: 2, limit: 5, status: 'assigned' });
-  assert.deepEqual(captured.filter, { status: 'assigned' });
+  assert.deepEqual(captured.filter, { deletedAt: null, status: 'assigned' });
   assert.deepEqual(captured.sort, { createdAt: -1, _id: 1 });
   assert.equal(captured.skip, 5);
   assert.equal(captured.limit, 5);
@@ -26,7 +26,7 @@ test('Pedidos: repositorio proyecta campos, filtra y pagina en orden estable', a
   assert.equal(result.totalPages, 3);
   assert.equal(result.nextPage, 3);
   await repository.list({ page: 1, limit: 10 });
-  assert.deepEqual(captured.filter, {});
-  t.mock.method(Order, 'findById', value => { assert.equal(value, id); return { select: () => ({ lean: async () => null }) }; });
+  assert.deepEqual(captured.filter, { deletedAt: null });
+  t.mock.method(Order, 'findOne', value => { assert.deepEqual(value, { _id: id, deletedAt: null }); return { select: () => ({ lean: async () => null }) }; });
   assert.equal(await repository.get(id), null);
 });

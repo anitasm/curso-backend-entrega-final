@@ -14,7 +14,7 @@ for (const [Model, Repository, field, add, has, data] of [
     const repo = new Repository(); let returned = { _id: id };
     t.mock.method(Model, 'findByIdAndUpdate', (value, update, options) => {
       assert.equal(value, id); assert.deepEqual(update, { $push: { [field]: metadata } });
-      assert.deepEqual(options, { new: true, runValidators: true, upsert: false });
+      assert.deepEqual(options, { returnDocument: 'after', runValidators: true, upsert: false });
       return { select(value) { assert.equal(value, '_id'); return { lean: async () => returned }; } };
     });
     assert.deepEqual(await repo[add](id, metadata), returned);
